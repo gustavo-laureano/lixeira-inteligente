@@ -1,0 +1,110 @@
+# Configuração do Sistema de Detecção - Lixeira Inteligente
+
+# Configurações da Câmera
+camera:
+  # Resolução da câmera (480p otimizado para performance)
+  resolution: [640, 480]
+  
+  # FPS desejado (ajuste conforme performance do Raspberry)
+  fps: 30
+  
+  # Device da câmera (0 para USB, pode ser arquivo para CSI camera)
+  device: 0
+  # Para câmera CSI no Raspberry, use:
+  # device: "/dev/video0"
+
+# Configurações do YOLO
+yolo:
+  # Modelo YOLO (use yolov8n.pt para melhor performance)
+  # Opções: yolov8n.pt (nano - mais rápido), yolov8s.pt (small), yolov8m.pt (medium)
+  model: "yolov8n.pt"
+  
+  # Confiança mínima para detecção (0.0 a 1.0)
+  # Valores menores = mais detecções mas mais falsos positivos
+  confidence: 0.5
+  
+  # IoU threshold para Non-Maximum Suppression
+  iou: 0.45
+
+# Configurações da Comunicação Serial (Arduino)
+serial:
+  # Porta serial do Arduino
+  # Opções comuns: /dev/ttyUSB0, /dev/ttyACM0, /dev/ttyS0
+  port: "/dev/ttyUSB0"
+  
+  # Baudrate (deve ser igual ao configurado no Arduino)
+  baudrate: 9600
+  
+  # Timeout de leitura em segundos
+  timeout: 1
+
+# Configurações de Detecção
+detection:
+  # Classes de objetos a serem detectadas (baseado no COCO dataset)
+  # bottle: garrafa PET, vidro
+  # cup: copo, xícara
+  # bowl: tigela, bowl
+  # wine glass: taça, cálice
+  # spoon, fork, knife: talheres
+  # Nota: O COCO dataset NÃO tem "can" (lata). Latas são geralmente detectadas como "bottle"
+  classes:
+    - "bottle"      # Garrafas (inclui algumas latas cilíndricas)
+    - "cup"         # Copos
+    - "bowl"        # Tigelas
+  
+  # Área mínima do objeto em pixels (filtro de ruído)
+  # Objetos menores que isso serão ignorados
+  min_area: 1000
+  
+  # Thresholds de distância baseados na área do objeto em pixels
+  # Área maior = objeto mais perto da câmera
+  distance_thresholds:
+    very_close: 50000   # Área > 50000 pixels² = MUITO PERTO (recuar)
+    close: 20000        # Área > 20000 pixels² = PERTO (parar ou ajustar)
+    medium: 10000       # Área > 10000 pixels² = MÉDIO (aproximar devagar)
+    # Área < 10000 pixels² = LONGE (avançar rápido)
+  
+  # Cooldown entre detecções do mesmo objeto (segundos)
+  # Evita enviar múltiplos comandos para o mesmo objeto
+  cooldown: 2.0
+
+# Configurações de Performance
+performance:
+  # Habilita aceleração de hardware (se disponível)
+  use_gpu: false
+  
+  # Número de threads para processamento
+  num_threads: 4
+  
+  # Skip frames para melhor performance
+  # 1 = processa todos os frames
+  # 2 = processa 1 a cada 2 frames
+  frame_skip: 1
+
+# Configurações de Logging
+logging:
+  # Nível de log: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  level: "INFO"
+  
+  # Arquivo de log
+  file: "/app/logs/detection.log"
+  
+  # Rotação de logs
+  max_bytes: 10485760  # 10MB
+  backup_count: 5
+
+# Mapeamento de Comandos (customize conforme seu Arduino)
+commands:
+  # Formato do comando enviado: {class}:{position}:{size}
+  # Exemplo: "BOTTLE:LEFT:SMALL"
+  
+  # Comandos de movimento
+  move_left: "MOVE:LEFT"
+  move_right: "MOVE:RIGHT"
+  move_forward: "MOVE:FORWARD"
+  move_backward: "MOVE:BACKWARD"
+  stop: "STOP"
+  
+  # Comandos de ação
+  open_lid: "ACTION:OPEN"
+  close_lid: "ACTION:CLOSE"

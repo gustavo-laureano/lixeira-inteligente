@@ -1,0 +1,38 @@
+# Requirements otimizados para Raspberry Pi
+# YOLO - Detecção de Objetos
+
+# Ultralytics YOLOv8 (versão otimizada)
+ultralytics==8.0.196
+
+# OpenCV para processamento de vídeo (versão headless sem GUI)
+opencv-python-headless==4.8.1.78
+
+# PyYAML para configuração
+PyYAML==6.0.1
+
+# PySerial para comunicação com Arduino
+pyserial==3.5
+
+# NumPy (versão estável)
+numpy==1.24.3
+
+# Pillow para processamento de imagens
+Pillow==10.0.0
+
+# Torch e TorchVision (para CPU/ARM)
+# Nota: Para Raspberry Pi, pode ser necessário instalar versões específicas
+# torch==2.0.1
+# torchvision==0.15.2
+
+# Dependências adicionais do Ultralytics
+torch>=1.8.0
+torchvision>=0.9.0
+matplotlib>=3.3.0
+scipy>=1.4.1
+requests>=2.23.0
+pandas>=1.1.4
+seaborn>=0.11.0
+
+# Otimizações
+psutil>=5.9.0
+tqdm>=4.64.0

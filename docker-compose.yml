@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  yolo-detector:
+    build: .
+    container_name: lixeira-inteligente
+    privileged: true  # Necessário para acesso a dispositivos
+    restart: unless-stopped
+    
+    # Volumes
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+      - ./logs:/app/logs
+      - ./models:/app/models
+      - ./data:/app/data
+    
+    # Dispositivos
+    devices:
+      # Câmera USB ou CSI
+      - /dev/video0:/dev/video0
+      # Porta serial do Arduino (ajuste conforme necessário)
+      - /dev/ttyUSB0:/dev/ttyUSB0
+      # Alternativa para Arduino conectado via USB
+      # - /dev/ttyACM0:/dev/ttyACM0
+    
+    # Variáveis de ambiente
+    environment:
+      - PYTHONUNBUFFERED=1
+      - TZ=America/Sao_Paulo
+    
+    # Network mode host para melhor performance
+    network_mode: host
+    
+    # Limites de recursos (ajuste conforme seu Raspberry Pi)
+    deploy:
+      resources:
+        limits:
+          cpus: '3.0'
+          memory: 1G
+        reservations:
+          cpus: '1.0'
+          memory: 512M
+    
+    # Healthcheck
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
