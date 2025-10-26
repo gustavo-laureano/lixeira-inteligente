@@ -154,328 +154,234 @@ detection:
     - "can"
   min_area: 1000          # Área mínima em pixels
 ```
+# CarrinhoMovimentacao — Módulo de Movimentação (Mecanum)
 
-### 2. Ajustar docker-compose.yml
+Sistema de controle (módulo) para movimentação de um carrinho com 4 rodas mecanum. Este repositório contém a parte responsável pelo controle de movimento (motores e entrada de comandos).
 
-Verifique os dispositivos no `docker-compose.yml`:
+## 📋 Características
 
-```yaml
-devices:
-  - /dev/video0:/dev/video0      # Ajuste se necessário
-  - /dev/ttyUSB0:/dev/ttyUSB0    # Ajuste conforme sua porta
-```
+- **4 Rodas Mecanum**: Movimento omnidirecional completo
+- **Arquitetura Modular**: Fácil expansão para novos controles
+- **Controle via Dabble**: Interface mobile intuitiva
+- **Movimentos Suportados**: 
+  - Frente/Trás/Esquerda/Direita
+  - Movimentos diagonais
+  - Rotação no próprio eixo
+  - Controle de velocidade
 
-## 🚀 Uso
-
-### Build da Imagem
-
-```bash
-docker-compose build
-```
-
-**Nota:** O primeiro build pode demorar 30-60 minutos no Raspberry Pi.
-
-### Executar o Sistema
-
-```bash
-# Iniciar em background
-docker-compose up -d
-
-# Ver logs em tempo real
-docker-compose logs -f
-
-# Parar o sistema
-docker-compose down
-```
-
-### Executar Sem Docker (Desenvolvimento)
-
-```bash
-# Instalar dependências
-pip3 install -r requirements.txt
-
-# Executar
-python3 detect.py
-```
-
-## 🔌 Comunicação com Arduino
-
-### Formato dos Comandos
-
-O sistema envia comandos no formato:
+## 🏗️ Arquitetura
 
 ```
-CLASSE:POSIÇÃO:DISTÂNCIA
+📁 include/
+├── Config.h                 # Configurações centralizadas
+├── InputController.h        # Interface base para controles
+├── DabbleInputController.h  # Implementação Dabble
+├── MecanumDrive.h          # Controle das rodas
+└── SerialInputController.h  # Exemplo de expansão
+
+📁 src/
+└── main.cpp                # Código principal
 ```
 
-**Posições:**
-- `LEFT` - Objeto à esquerda
-- `CENTER` - Objeto no centro
-- `RIGHT` - Objeto à direita
+## 🔧 Configuração do Hardware
 
-**Distâncias (baseadas na área do objeto em pixels):**
-- `VERY_CLOSE` - Muito perto (área > 50.000 pixels²) → **Arduino RECUA**
-- `CLOSE` - Perto (área > 20.000 pixels²) → Arduino para (objeto alcançado)
-- `MEDIUM` - Distância média (área > 10.000 pixels²) → Arduino avança devagar
-- `FAR` - Longe (área < 10.000 pixels²) → Arduino avança rápido
+### Hardware Utilizado:
+- **2x TB6612FNG** (cada controlador gerencia 2 motores)
+- **ESP32** para controle
+- **4 Motores DC** com rodas mecanum
 
-Exemplos:
-- `BOTTLE:LEFT:FAR` - Garrafa longe à esquerda (vira esquerda + avança rápido)
-- `CAN:CENTER:MEDIUM` - Lata média distância no centro (avança devagar)
-- `CUP:RIGHT:CLOSE` - Copo perto à direita (para/ajusta)
-- `BOWL:CENTER:VERY_CLOSE` - Tigela muito perto no centro (**RECUA**)
+### ⚡ Alimentação:
+- **VM (TB6612FNG):** 7.7V (alimentação dos motores)
+- **VCC (TB6612FNG):** 5V (lógica do controlador) 
+- **ESP32:** 3.3V ou via USB
 
-### Código Arduino Exemplo
+⚠️ **IMPORTANTE:** Não alimente o ESP32 com 3.8V! Use 3.3V ou USB (5V)
+
+### Motores (2x TB6612FNG):
+
+**TB6612FNG #1 (Motores A e C):**
+```cpp
+// Motor A (Frontal Esquerdo) - Canal A do TB6612FNG #1
+#define MOTOR_A_PWM_PIN    14  // PWMA - Marrom
+#define MOTOR_A_DIR1_PIN   26  // AIN1 - Verde  
+#define MOTOR_A_DIR2_PIN   27  // AIN2 - Amarelo
+
+// Motor C (Frontal Direito) - Canal B do TB6612FNG #1
+#define MOTOR_C_PWM_PIN    17  // PWMB - Amarelo
+#define MOTOR_C_DIR1_PIN   18  // BIN1 - Branco
+#define MOTOR_C_DIR2_PIN   19  // BIN2 - Marrom
+```
+
+**TB6612FNG #2 (Motores B e D):**
+```cpp
+// Motor B (Traseiro Esquerdo) - Canal A do TB6612FNG #2
+#define MOTOR_B_PWM_PIN    32  // PWMA - Cinza
+#define MOTOR_B_DIR1_PIN   25  // AIN1 - Roxo
+#define MOTOR_B_DIR2_PIN   33  // AIN2 - Azul
+
+// Motor D (Traseiro Direito) - Canal B do TB6612FNG #2
+#define MOTOR_D_PWM_PIN    21  // PWMB - Roxo
+#define MOTOR_D_DIR1_PIN   22  // BIN1 - Azul
+#define MOTOR_D_DIR2_PIN   23  // BIN2 - Verde
+```
+
+### 🔌 Conexões TB6612FNG:
+- **STBY:** Conecte ao VCC (sempre ativo) ou a um pino digital para controle
+- **VM:** 7.7V (alimentação dos motores)
+- **VCC:** 5V (lógica do controlador)
+- **GND:** Terra comum
+
+### Disposição das Rodas:
+```
+A ---- C
+|  \  /  |
+|   \/   |  
+|   /\   |
+|  /  \  |
+B ---- D
+```
+
+## 🎮 Controles Disponíveis
+
+### Dabble App (Bluetooth)
+
+- **⬆️⬇️⬅️➡️**: Movimento direcional
+- **⬆️+⬅️/➡️**: Movimentos diagonais
+- **⬇️+⬅️/➡️**: Movimentos diagonais traseiros
+- **⬜ (Square)**: Rotação esquerda
+- **⭕ (Circle)**: Rotação direita  
+- **🔺 (Triangle)**: Aumentar velocidade
+- **❌ (Cross)**: Diminuir velocidade
+- **SELECT**: Alternar GamePad ↔ Joystick
+
+### 📟 Controle Serial (Monitor Serial)
+
+Para usar controle serial, substitua `DabbleInputController` por `SerialInputController` no main.cpp.
+
+#### Comandos de Movimento:
+| Tecla | Ação | Emoji |
+|-------|------|-------|
+| `w` | Frente | ⬆️ |
+| `s` | Trás | ⬇️ |
+| `a` | Esquerda | ⬅️ |
+| `d` | Direita | ➡️ |
+| `q` | Girar Esquerda | 🔄 |
+| `e` | Girar Direita | 🔃 |
+| `x` | Parar | ⏹️ |
+
+#### Comandos Diagonais:
+| Tecla | Ação | Emoji |
+|-------|------|-------|
+| `r` | Frente-Direita | ↗️ |
+| `t` | Frente-Esquerda | ↖️ |
+| `f` | Trás-Direita | ↘️ |
+| `g` | Trás-Esquerda | ↙️ |
+
+#### Velocidades Predefinidas:
+| Tecla | Velocidade | Valor | Emoji |
+|-------|------------|-------|-------|
+| `1` | Devagar | 80 | 🐢 |
+| `2` | Normal | 140 | 🚶 |
+| `3` | Rápido | 180 | 🏃 |
+| `4` | Muito Rápido | 200 | 🚀 |
+
+#### Ajuste Manual:
+| Tecla | Ação | Emoji |
+|-------|------|-------|
+| `+` | Aumentar velocidade (+20) | ⬆️ |
+| `-` | Diminuir velocidade (-20) | ⬇️ |
+
+**Exemplo de uso:**
+```
+1     # Define velocidade devagar
+w     # Move para frente devagar
+3     # Muda para rápido  
+r     # Move diagonal frente-direita rápido
+x     # Para
+```
+
+## 🚀 Como Expandir
+
+### Adicionando um Novo Controlador
+
+1. **Crie uma nova classe** herdando de `BaseInputController`:
 
 ```cpp
-void setup() {
-  Serial.begin(9600);
-  // Configurar seus motores aqui
-}
-
-void loop() {
-  if (Serial.available() > 0) {
-    String command = Serial.readStringUntil('\n');
-    processCommand(command);
-  }
-}
-
-void processCommand(String cmd) {
-  // Parse: OBJETO:POSICAO:DISTANCIA
-  int firstColon = cmd.indexOf(':');
-  int secondColon = cmd.indexOf(':', firstColon + 1);
+class MeuNovoController : public BaseInputController {
+public:
+  MeuNovoController() : BaseInputController("Meu Controle") {}
   
-  String object = cmd.substring(0, firstColon);
-  String position = cmd.substring(firstColon + 1, secondColon);
-  String distance = cmd.substring(secondColon + 1);
-  
-  // Lógica baseada na DISTÂNCIA
-  if (distance == "VERY_CLOSE") {
-    // ⬅️ RECUAR - Objeto muito perto!
-    moveBackward();
-    
-  } else if (distance == "CLOSE") {
-    // ⏸️ PARAR - Objeto alcançado!
-    stopMotors();
-    
-  } else if (distance == "MEDIUM") {
-    // 🐢 APROXIMAR DEVAGAR
-    if (position == "LEFT") {
-      turnLeft();
-      moveForwardSlow();
-    } else if (position == "RIGHT") {
-      turnRight();
-      moveForwardSlow();
-    } else {
-      moveForwardSlow();
-    }
-    
-  } else if (distance == "FAR") {
-    // 🚀 AVANÇAR RÁPIDO
-    if (position == "LEFT") {
-      turnLeft();
-      moveForwardFast();
-    } else if (position == "RIGHT") {
-      turnRight();
-      moveForwardFast();
-    } else {
-      moveForwardFast();
-    }
+  virtual bool begin() override {
+    // Sua inicialização aqui
+    return true;
   }
   
-  Serial.println("OK"); // Resposta
-}
+  virtual void update() override {
+    // Lógica de atualização aqui
+    // Use setMovementData() para enviar comandos
+  }
+};
 ```
 
-Veja o código completo em [arduino_example.ino](arduino_example.ino).
+2. **No main.cpp**, substitua a instanciação:
 
-## ⚡ Otimizações para Performance
+```cpp
+// Era:
+inputController = new DabbleInputController();
 
-### 1. Usar Modelo Nano
-
-O YOLOv8n (nano) é o mais rápido. Modelos maiores são muito lentos no Raspberry Pi:
-- ✅ `yolov8n.pt` - **Recomendado** (~10-15 FPS no Pi 4)
-- ⚠️ `yolov8s.pt` - Mais lento (~3-5 FPS)
-- ❌ `yolov8m.pt`, `yolov8l.pt` - Muito lentos
-
-### 2. Reduzir Resolução
-
-Se precisar de mais FPS, reduza a resolução:
-
-```yaml
-camera:
-  resolution: [320, 240]  # QVGA - mais rápido
+// Fica:
+inputController = new MeuNovoController();
 ```
 
-### 3. Skip Frames
+### Exemplos de Expansão
 
-Processe apenas alguns frames:
+- **Serial**: Comandos via monitor serial
+- **WiFi**: Interface web para controle
+- **Joystick**: Controle analógico
+- **IMU**: Controle por inclinação
+- **Voz**: Comandos de voz
+- **Câmera**: Seguir objetos/cores
 
-```yaml
-performance:
-  frame_skip: 2  # Processa 1 a cada 2 frames
-```
+## 🔧 Compilação
 
-### 4. Aumentar Confidence Threshold
+1. Abra o projeto no PlatformIO
+2. Configure os pinos em `Config.h`
+3. Compile e upload para o ESP32
+4. Conecte via Dabble App
 
-Reduza falsos positivos aumentando a confiança mínima:
+## 📊 Debug
 
-```yaml
-yolo:
-  confidence: 0.6  # Maior = menos detecções mas mais precisas
-```
+O sistema fornece informações detalhadas via Serial:
+- Status de conexão
+- Comandos recebidos
+- Estado dos motores
+- Informações de sistema
 
-### 5. Overclock do Raspberry Pi (Opcional)
+## ⚙️ Configurações Avançadas
 
-**ATENÇÃO:** Faça apenas se tiver boa ventilação!
+Edite `Config.h` para ajustar:
+- Pinos dos motores
+- Velocidades padrão
+- Timeouts
+- Configurações PWM
+- Nome do dispositivo Bluetooth
 
-Edite `/boot/config.txt`:
+## 🛠️ Solução de Problemas
 
-```bash
-# Para Raspberry Pi 4
-over_voltage=6
-arm_freq=2000
-gpu_freq=750
-```
+1. **Motores não respondem**: Verifique conexões e pinos
+2. **Movimento incorreto**: Ajuste a orientação dos motores
+3. **Bluetooth não conecta**: Verifique o nome do dispositivo
+4. **Velocidade baixa**: Ajuste `DEFAULT_SPEED` em Config.h
 
-## 🐛 Troubleshooting
+## 📈 Roadmap
 
-### Câmera não detectada
-
-```bash
-# Verificar se câmera está conectada
-vcgencmd get_camera
-
-# Testar câmera
-raspistill -o test.jpg  # Para câmera CSI
-fswebcam test.jpg       # Para câmera USB
-
-# Verificar permissões
-sudo chmod 666 /dev/video0
-```
-
-### Arduino não comunica
-
-```bash
-# Verificar porta
-ls -l /dev/ttyUSB* /dev/ttyACM*
-
-# Adicionar permissões
-sudo usermod -aG dialout $USER
-
-# Testar comunicação
-sudo apt install screen
-screen /dev/ttyUSB0 9600
-```
-
-### Performance muito baixa
-
-1. **Reduzir resolução** para 320x240
-2. **Usar frame_skip** = 2 ou 3
-3. **Aumentar min_area** para ignorar objetos pequenos
-4. **Verificar temperatura**: `vcgencmd measure_temp`
-5. **Adicionar dissipador de calor** e ventilador
-
-### Docker build falha
-
-```bash
-# Limpar cache
-docker system prune -a
-
-# Build sem cache
-docker-compose build --no-cache
-
-# Verificar espaço em disco
-df -h
-```
-
-### Modelo YOLO não baixa
-
-```bash
-# Baixar manualmente
-cd models
-wget https://github.com/ultralytics/assets/releases/download/v0.0.0/yolov8n.pt
-```
-
-## 📊 Monitoramento
-
-### Ver logs
-
-```bash
-# Logs em tempo real
-docker-compose logs -f
-
-# Últimas 100 linhas
-docker-compose logs --tail=100
-
-# Arquivo de log
-tail -f logs/detection.log
-```
-
-### Estatísticas do Container
-
-```bash
-# Uso de recursos
-docker stats lixeira-inteligente
-
-# Informações do container
-docker inspect lixeira-inteligente
-```
-
-## 🔄 Atualização
-
-```bash
-# Parar sistema
-docker-compose down
-
-# Atualizar código
-git pull
-
-# Rebuild e reiniciar
-docker-compose up -d --build
-```
-
-## 📝 Estrutura do Projeto
-
-```
-lixeira-inteligente/
-├── Dockerfile              # Imagem Docker
-├── docker-compose.yml      # Orquestração
-├── detect.py              # Script principal
-├── config.yaml            # Configurações
-├── requirements.txt       # Dependências Python
-├── README.md             # Este arquivo
-├── logs/                 # Logs do sistema
-├── models/               # Modelos YOLO
-└── data/                 # Dados e capturas
-```
-
-## 🤝 Contribuindo
-
-Contribuições são bem-vindas! Por favor:
-
-1. Fork o projeto
-2. Crie uma branch para sua feature
-3. Commit suas mudanças
-4. Push para a branch
-5. Abra um Pull Request
-
-## 📄 Licença
-
-Este projeto está sob a licença MIT. Veja o arquivo LICENSE para detalhes.
-
-## 👨‍💻 Autor
-
-**Gustavo Laureano**
-
-- GitHub: [@gustavo-laureano](https://github.com/gustavo-laureano)
-
-## 🙏 Agradecimentos
-
-- [Ultralytics](https://github.com/ultralytics/ultralytics) pelo YOLOv8
-- Comunidade Raspberry Pi
-- Comunidade Arduino
+- [ ] Controle via WiFi
+- [ ] Interface web
+- [ ] Sensores de obstáculos
+- [ ] Controle autônomo
+- [ ] Telemetria avançada
 
 ---
 
-**Dica:** Para melhor performance, use Raspberry Pi 4 com 4GB+ RAM e um bom sistema de refrigeração! 🌡️
+**Desenvolvido em 2025** 🚀
+>>>>>>> 7b14a6e (Prepare project for GitHub: add main, cleanup backups, .gitignore, CI workflow)

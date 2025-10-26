@@ -1,0 +1,32 @@
+name: PlatformIO Build
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    name: Build (PlatformIO)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install PlatformIO
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install platformio
+
+      - name: Show PlatformIO version
+        run: pio --version
+
+      - name: Build project (env: esp32doit-devkit-v1)
+        run: pio run -e esp32doit-devkit-v1
