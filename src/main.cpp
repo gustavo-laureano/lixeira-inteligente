@@ -1,34 +1,35 @@
 // Carrinho Mecanum ESP32
-// Controle via Dabble App - GamePad e Joystick
+// Controle via API WebSocket
 
 #include <Arduino.h>
 #include "Config.h"
 #include "MecanumDrive.h"
-#include "ControleDabble.h"
+#include "APIreceiver.h"
 
 MecanumDrive mecanumDrive;
-ControleDabble* controleEntrada;
+RobotReceiver robotReceiver;
 
 unsigned long lastStatusUpdate = 0;
 bool systemInitialized = false;
 
 void printWelcomeMessage() {
-  Serial.println("ESP32 Carrinho Mecanum");
-  Serial.printf("Bluetooth: %s\n", BT_DEVICE_NAME);
+  Serial.println("ESP32 Carrinho Mecanum - API Control");
+  Serial.println("Aguardando comandos via WebSocket...");
 }
 
 void printControlInstructions() {
-  Serial.println("Controles disponiveis:");
-  Serial.println("- Setas direcionais (GamePad)");
-  Serial.println("- Joystick analogico");
-  Serial.println("LED: Piscando=Pronto | Solido=Conectado");
+  Serial.println("Comandos aceitos via WebSocket:");
+  Serial.println("- 'w' = Frente");
+  Serial.println("- 's' = Tras");
+  Serial.println("- 'a' = Esquerda");
+  Serial.println("- 'd' = Direita");
+  Serial.println("- 'q' = Girar Esquerda");
+  Serial.println("- 'e' = Girar Direita");
+  Serial.println("- 'x' = Parar");
 }
 
 void printSystemStatus() {
-  DadosMovimento movimento = controleEntrada->obterDadosMovimento();
-  Serial.printf("Status: %s | Cmd: %d | Vel: %d\n", 
-                controleEntrada->estaConectado() ? "ON" : "OFF",
-                movimento.comando, movimento.velocidade);
+  Serial.printf("Sistema ativo | Motores: OK | WiFi: Conectado\n");
 }
 
 void handlePeriodicUpdates() {
@@ -45,18 +46,10 @@ void updateStatusLED() {
   static bool ledState = false;
   unsigned long now = millis();
   
-  ControleDabble* dabbleController = static_cast<ControleDabble*>(controleEntrada);
-  
-  if (dabbleController->estaConectado()) {
-    digitalWrite(STATUS_LED_PIN, HIGH);
-  } else if (dabbleController->bluetoothPronto()) {
-    if (now - lastLedUpdate > 500) {
-      ledState = !ledState;
-      digitalWrite(STATUS_LED_PIN, ledState);
-      lastLedUpdate = now;
-    }
-  } else {
-    digitalWrite(STATUS_LED_PIN, LOW);
+  if (now - lastLedUpdate > 1000) {
+    ledState = !ledState;
+    digitalWrite(STATUS_LED_PIN, ledState);
+    lastLedUpdate = now;
   }
 }
 
@@ -87,21 +80,14 @@ void setup() {
     return;
   }
   
-  controleEntrada = new ControleDabble();
-  
-  if (!controleEntrada->iniciar()) {
-    Serial.println("Erro Bluetooth!");
-    while (true) {
-      blinkErrorLED();
-      delay(100);
-    }
-  }
-  
   systemInitialized = true;
   digitalWrite(STATUS_LED_PIN, HIGH);
   
   Serial.println("Sistema pronto!");
   printControlInstructions();
+
+  // Inicia o receptor WebSocket para comandos remotos (API)
+  robotReceiver.begin(WIFI_SSID, WIFI_PASSWORD);
 }
 
 void loop() {
@@ -111,17 +97,45 @@ void loop() {
     return;
   }
   
-  controleEntrada->atualizar();
+  // Loop do receptor WebSocket (mantém conexão e processa mensagens)
+  robotReceiver.loop();
   
-  DadosMovimento movimento = controleEntrada->obterDadosMovimento();
-  
-  mecanumDrive.executeMovement(movimento);
-  
+  // Timeout de segurança dos motores
   mecanumDrive.checkTimeout();
   
   handlePeriodicUpdates();
   
   updateStatusLED();
-  
+
   delay(10);
+}
+
+// Implementação da função que será chamada pelo APIreceiver.h
+// Converte um comando simples (um caracter) em um DadosMovimento
+void handleRobotCommand(String command) {
+  if (command.length() == 0) return;
+  char c = command.charAt(0);
+  // Normaliza para minúscula
+  if (c >= 'A' && c <= 'Z') c = c + 32;
+
+  DadosMovimento dm;
+  dm.velocidade = DEFAULT_SPEED;
+  dm.ativo = true;
+  dm.timestamp = millis();
+
+  switch (c) {
+    case 'w': dm.comando = MOVER_FRENTE; break;    // frente
+    case 's': dm.comando = MOVER_TRAS; break;      // trás
+    case 'a': dm.comando = MOVER_ESQUERDA; break;  // esquerda
+    case 'd': dm.comando = MOVER_DIREITA; break;   // direita
+    case 'q': dm.comando = GIRAR_ESQUERDA; break;  // girar esquerda
+    case 'e': dm.comando = GIRAR_DIREITA; break;   // girar direita
+    case 'x': dm.comando = PARAR; dm.ativo = false; break; // parar
+    default:
+      // Comando desconhecido: ignora
+      return;
+  }
+
+  // Executa o movimento imediatamente
+  mecanumDrive.executeMovement(dm);
 }

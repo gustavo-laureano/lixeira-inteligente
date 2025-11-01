@@ -38,4 +38,8 @@
 #define STATUS_UPDATE_INTERVAL 1000
 #define MOTOR_STOP_DELAY    50
 
+// Configurações WiFi para APIreceiver
+#define WIFI_SSID           "POCO M3 Pro 5G"
+#define WIFI_PASSWORD       "wifitop12347"
+
 #endif
