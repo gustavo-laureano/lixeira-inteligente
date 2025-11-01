@@ -36,3 +36,8 @@ seaborn>=0.11.0
 # Otimizações
 psutil>=5.9.0
 tqdm>=4.64.0
+
+# Dependências para API WebSocket (Sistema de Teste de Latência)
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+websockets>=12.0

@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle Virtual - Lixeira Inteligente</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f5f5f5;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+            border: 1px solid #ddd;
+        }
+
+        h1 {
+            font-size: 24px;
+            font-weight: 400;
+            color: #000;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .status-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ccc;
+        }
+
+        .status-dot.connected {
+            background: #000;
+        }
+
+        .status-text {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .latency-info {
+            font-size: 12px;
+            color: #999;
+        }
+
+        .latency-value {
+            color: #000;
+        }
+
+        .controls-section {
+            margin-bottom: 30px;
+        }
+
+        .section-title {
+            font-size: 12px;
+            font-weight: 400;
+            color: #999;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .control-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+
+        .control-grid-rotation {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+
+        .btn {
+            padding: 16px;
+            font-size: 14px;
+            font-weight: 400;
+            border: 1px solid #ddd;
+            background: white;
+            color: #000;
+            cursor: pointer;
+            transition: background 0.1s;
+            user-select: none;
+            touch-action: manipulation;
+        }
+
+        .btn:active {
+            background: #f5f5f5;
+        }
+
+        .btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        .btn-stop {
+            grid-column: 1 / -1;
+        }
+
+        .btn-test {
+            width: 100%;
+            margin-top: 15px;
+        }
+
+        .config-section {
+            margin-top: 30px;
+            padding-top: 30px;
+            border-top: 1px solid #eee;
+        }
+
+        .config-input-group {
+            margin-bottom: 12px;
+        }
+
+        .config-input-group label {
+            display: block;
+            font-size: 12px;
+            color: #999;
+            margin-bottom: 6px;
+        }
+
+        .config-input-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            font-size: 14px;
+            background: white;
+        }
+
+        .config-input-group input:focus {
+            outline: none;
+            border-color: #000;
+        }
+
+        .btn-connect {
+            width: 100%;
+            padding: 12px;
+            background: #000;
+            color: white;
+            font-size: 14px;
+            font-weight: 400;
+            border: none;
+            cursor: pointer;
+            transition: opacity 0.1s;
+        }
+
+        .btn-connect:hover {
+            opacity: 0.8;
+        }
+
+        .btn-connect:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 30px 20px;
+            }
+
+            .btn {
+                padding: 14px;
+                font-size: 13px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Controle</h1>
+
+        <!-- Status da Conexão -->
+        <div class="status-section">
+            <div class="status-indicator">
+                <div class="status-dot" id="statusDot"></div>
+                <span class="status-text" id="statusText">Desconectado</span>
+            </div>
+            <div class="latency-info">
+                <span class="latency-value" id="latencyValue">--</span> ms
+            </div>
+        </div>
+
+        <!-- Controles de Movimento -->
+        <div class="controls-section">
+            <div class="section-title">Movimento</div>
+            <div class="control-grid">
+                <div></div>
+                <button class="btn" id="btnW" data-cmd="w">Frente</button>
+                <div></div>
+                <button class="btn" id="btnA" data-cmd="a">Esquerda</button>
+                <div></div>
+                <button class="btn" id="btnD" data-cmd="d">Direita</button>
+                <div></div>
+                <button class="btn" id="btnS" data-cmd="s">Trás</button>
+                <div></div>
+                <button class="btn btn-stop" id="btnStop" data-cmd="x">Parar</button>
+                <div></div>
+            </div>
+
+            <div class="section-title">Rotação</div>
+            <div class="control-grid-rotation">
+                <button class="btn" id="btnQ" data-cmd="q">Girar Esq</button>
+                <button class="btn" id="btnE" data-cmd="e">Girar Dir</button>
+            </div>
+
+            <button class="btn btn-test" id="btnTestLatency">Testar Latência</button>
+        </div>
+
+        <!-- Configuração de Conexão -->
+        <div class="config-section">
+            <div class="config-input-group">
+                <label for="serverInput">Servidor</label>
+                <input type="text" id="serverInput" placeholder="ws://localhost:8000/ws/controller" value="ws://localhost:8000/ws/controller">
+            </div>
+            <button class="btn-connect" id="btnConnect">Conectar</button>
+        </div>
+    </div>
+
+    <script>
+        class RobotController {
+            constructor() {
+                this.ws = null;
+                this.isConnected = false;
+                this.pingStartTime = null;
+                
+                // Referências DOM
+                this.statusDot = document.getElementById('statusDot');
+                this.statusText = document.getElementById('statusText');
+                this.latencyValue = document.getElementById('latencyValue');
+                this.serverInput = document.getElementById('serverInput');
+                this.btnConnect = document.getElementById('btnConnect');
+                
+                // Botões de comando
+                this.btnW = document.getElementById('btnW');
+                this.btnA = document.getElementById('btnA');
+                this.btnS = document.getElementById('btnS');
+                this.btnD = document.getElementById('btnD');
+                this.btnQ = document.getElementById('btnQ');
+                this.btnE = document.getElementById('btnE');
+                this.btnStop = document.getElementById('btnStop');
+                this.btnTestLatency = document.getElementById('btnTestLatency');
+                
+                this.initEventListeners();
+            }
+
+            initEventListeners() {
+                // Botão de conexão
+                this.btnConnect.addEventListener('click', () => {
+                    if (this.isConnected) {
+                        this.disconnect();
+                    } else {
+                        this.connect();
+                    }
+                });
+
+                // Botões de movimento - mousedown/touchstart
+                const movementButtons = [this.btnW, this.btnA, this.btnS, this.btnD, this.btnQ, this.btnE];
+                movementButtons.forEach(btn => {
+                    const cmd = btn.dataset.cmd;
+                    
+                    // Mouse events
+                    btn.addEventListener('mousedown', (e) => {
+                        e.preventDefault();
+                        this.sendCommand(cmd);
+                    });
+                    
+                    btn.addEventListener('mouseup', (e) => {
+                        e.preventDefault();
+                        this.sendCommand('x'); // Para ao soltar
+                    });
+                    
+                    btn.addEventListener('mouseleave', () => {
+                        this.sendCommand('x'); // Para se o mouse sair do botão
+                    });
+                    
+                    // Touch events (mobile)
+                    btn.addEventListener('touchstart', (e) => {
+                        e.preventDefault();
+                        this.sendCommand(cmd);
+                    });
+                    
+                    btn.addEventListener('touchend', (e) => {
+                        e.preventDefault();
+                        this.sendCommand('x'); // Para ao soltar
+                    });
+                    
+                    btn.addEventListener('touchcancel', (e) => {
+                        e.preventDefault();
+                        this.sendCommand('x'); // Para se o touch for cancelado
+                    });
+                });
+
+                // Botão de parada (apenas click)
+                this.btnStop.addEventListener('click', () => {
+                    this.sendCommand('x');
+                });
+
+                // Botão de teste de latência
+                this.btnTestLatency.addEventListener('click', () => {
+                    this.testLatency();
+                });
+
+                // Enter no input para conectar
+                this.serverInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter' && !this.isConnected) {
+                        this.connect();
+                    }
+                });
+
+                // Controle por teclado (W, A, S, D, Q, E)
+                this.activeKeys = new Set();
+                document.addEventListener('keydown', (e) => {
+                    // Ignora se estiver digitando no input
+                    if (e.target === this.serverInput || e.target.tagName === 'INPUT') {
+                        return;
+                    }
+
+                    const key = e.key.toLowerCase();
+                    const keyMap = {
+                        'w': 'w',
+                        'a': 'a',
+                        's': 's',
+                        'd': 'd',
+                        'q': 'q',
+                        'e': 'e'
+                    };
+
+                    if (keyMap[key] && !this.activeKeys.has(key)) {
+                        this.activeKeys.add(key);
+                        this.sendCommand(keyMap[key]);
+                    }
+                });
+
+                document.addEventListener('keyup', (e) => {
+                    const key = e.key.toLowerCase();
+                    if (this.activeKeys.has(key)) {
+                        this.activeKeys.delete(key);
+                        // Para o movimento quando soltar a tecla
+                        this.sendCommand('x');
+                    }
+                });
+            }
+
+            connect() {
+                let serverUri = this.serverInput.value.trim();
+                
+                if (!serverUri) {
+                    alert('Por favor, insira a URI do servidor');
+                    return;
+                }
+
+                // Converte automaticamente http:// para ws:// e https:// para wss://
+                if (serverUri.startsWith('http://')) {
+                    serverUri = serverUri.replace('http://', 'ws://');
+                    this.serverInput.value = serverUri;
+                    console.log('Protocolo convertido de http:// para ws://');
+                } else if (serverUri.startsWith('https://')) {
+                    serverUri = serverUri.replace('https://', 'wss://');
+                    this.serverInput.value = serverUri;
+                    console.log('Protocolo convertido de https:// para wss://');
+                }
+
+                // Valida se tem o protocolo correto
+                if (!serverUri.startsWith('ws://') && !serverUri.startsWith('wss://')) {
+                    alert('URI inválida! Use ws:// ou wss:// (ex: ws://127.0.0.1:8000/ws/controller)');
+                    return;
+                }
+
+                try {
+                    console.log(`Conectando a: ${serverUri}`);
+                    this.ws = new WebSocket(serverUri);
+                    
+                    this.ws.onopen = () => {
+                        console.log('WebSocket conectado');
+                        this.isConnected = true;
+                        this.updateStatus(true);
+                        this.btnConnect.textContent = 'Desconectar';
+                    };
+
+                    this.ws.onmessage = (event) => {
+                        const message = event.data;
+                        
+                        // Teste de latência
+                        if (message === 'pong' && this.pingStartTime !== null) {
+                            const latency = performance.now() - this.pingStartTime;
+                            this.latencyValue.textContent = latency.toFixed(1);
+                            this.pingStartTime = null;
+                            console.log(`Latência RTT: ${latency.toFixed(1)} ms`);
+                        } else {
+                            console.log('Mensagem recebida:', message);
+                        }
+                    };
+
+                    this.ws.onerror = (error) => {
+                        console.error('Erro WebSocket:', error);
+                        let errorMsg = 'Erro ao conectar. ';
+                        
+                        // Verifica se o servidor está rodando
+                        if (serverUri.includes('127.0.0.1') || serverUri.includes('localhost')) {
+                            errorMsg += 'Verifique se o servidor está rodando (python api_server.py)';
+                        } else {
+                            errorMsg += 'Verifique a URI do servidor e se ele está acessível.';
+                        }
+                        
+                        alert(errorMsg);
+                        this.updateStatus(false);
+                    };
+
+                    this.ws.onclose = (event) => {
+                        console.log('WebSocket desconectado', event.code, event.reason);
+                        this.isConnected = false;
+                        this.updateStatus(false);
+                        this.btnConnect.textContent = 'Conectar';
+                        
+                        // Mostra mensagem se foi fechado com erro
+                        if (event.code !== 1000) {
+                            let closeMsg = 'Conexão fechada. ';
+                            if (event.code === 1006) {
+                                closeMsg += 'Servidor não encontrado ou não está rodando.';
+                            } else {
+                                closeMsg += `Código: ${event.code}`;
+                            }
+                            console.warn(closeMsg);
+                        }
+                    };
+
+                } catch (error) {
+                    console.error('Erro ao criar WebSocket:', error);
+                    alert('Erro ao criar conexão WebSocket: ' + error.message);
+                }
+            }
+
+            disconnect() {
+                if (this.ws) {
+                    this.ws.close();
+                    this.ws = null;
+                }
+                this.isConnected = false;
+                this.updateStatus(false);
+                this.btnConnect.textContent = 'Conectar';
+            }
+
+            sendCommand(cmd) {
+                if (!this.isConnected || !this.ws) {
+                    console.warn('Não conectado. Comando ignorado:', cmd);
+                    return;
+                }
+
+                if (this.ws.readyState === WebSocket.OPEN) {
+                    this.ws.send(cmd);
+                    console.log('Comando enviado:', cmd);
+                } else {
+                    console.warn('WebSocket não está aberto');
+                }
+            }
+
+            testLatency() {
+                if (!this.isConnected || !this.ws) {
+                    alert('Conecte-se ao servidor primeiro');
+                    return;
+                }
+
+                this.pingStartTime = performance.now();
+                this.sendCommand('ping');
+                this.latencyValue.textContent = '...';
+            }
+
+            updateStatus(connected) {
+                this.statusDot.className = `status-dot ${connected ? 'connected' : 'disconnected'}`;
+                this.statusText.textContent = connected ? 'Conectado' : 'Desconectado';
+                
+                // Desabilita botões se desconectado
+                const buttons = [this.btnW, this.btnA, this.btnS, this.btnD, this.btnQ, this.btnE, this.btnStop, this.btnTestLatency];
+                buttons.forEach(btn => {
+                    btn.disabled = !connected;
+                });
+            }
+        }
+
+        // Inicializa o controlador quando a página carregar
+        document.addEventListener('DOMContentLoaded', () => {
+            new RobotController();
+        });
+
+        // Previne comportamento padrão de scroll em mobile ao tocar nos botões
+        document.addEventListener('touchmove', (e) => {
+            if (e.target.classList.contains('btn')) {
+                e.preventDefault();
+            }
+        }, { passive: false });
+    </script>
+</body>
+</html>
+

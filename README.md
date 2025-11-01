@@ -1,6 +1,6 @@
 # 🗑️ Lixeira Inteligente - Sistema YOLO para Raspberry Pi
 
-Sistema de detecção de objetos em tempo real usando YOLOv8, otimizado para Raspberry Pi com câmera 480p e comunicação com Arduino.
+Este projeto consiste no desenvolvimento de um sistema robótico autônomo para interceptação de objetos em pleno voo. O núcleo do sistema utiliza visão computacional, implementando o modelo YOLO (You Only Look Once) para detecção e rastreamento de alta velocidade.
 
 ## 📋 Índice
 
