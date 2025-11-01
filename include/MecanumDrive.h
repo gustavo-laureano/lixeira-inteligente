@@ -2,6 +2,7 @@
 #define MECANUM_DRIVE_H
 
 #include <Arduino.h>
+#include <math.h>
 #include "Config.h"
 #include "ControleEntrada.h"
 
@@ -69,6 +70,49 @@ public:
       case PARAR:
       default: stopAllMotors(); break;
     }
+  }
+
+  // Executa movimento a partir de um vetor contínuo (Vy, Vx)
+  // vy: frente(+)/tras(-)  -1.0 .. 1.0
+  // vx: direita(+)/esquerda(-) -1.0 .. 1.0
+  // (não suportamos rotação nesta operação)
+  void executeVector(float vy, float vx) {
+    if (!initialized) return;
+
+    // Constrói as velocidades brutas das rodas usando cinemática inversa (sem rotação)
+    // Mapeamento (motorA = Frontal Esquerdo, motorC = Frontal Direito,
+    // motorB = Traseiro Esquerdo, motorD = Traseiro Direito)
+    float a = vy + vx; // Motor A (Frontal Esquerdo)
+    float c = vy - vx; // Motor C (Frontal Direito)
+    float b = vy - vx; // Motor B (Traseiro Esquerdo)
+    float d = vy + vx; // Motor D (Traseiro Direito)
+
+    // Normaliza para que o maior valor absoluto seja 1.0, se necessário
+    float maxAbs = fabs(a);
+    if (fabs(b) > maxAbs) maxAbs = fabs(b);
+    if (fabs(c) > maxAbs) maxAbs = fabs(c);
+    if (fabs(d) > maxAbs) maxAbs = fabs(d);
+    if (maxAbs < 1.0f) maxAbs = 1.0f; // evita escalonamento para cima
+
+    a = a / maxAbs;
+    b = b / maxAbs;
+    c = c / maxAbs;
+    d = d / maxAbs;
+
+    // Converte -1.0..1.0 para valores PWM (-MAX_SPEED .. MAX_SPEED)
+    int ia = (int)roundf(a * MAX_SPEED);
+    int ib = (int)roundf(b * MAX_SPEED);
+    int ic = (int)roundf(c * MAX_SPEED);
+    int id = (int)roundf(d * MAX_SPEED);
+
+    // Aplica aos motores
+    setMotorSpeed(motorA, ia);
+    setMotorSpeed(motorC, ic);
+    setMotorSpeed(motorB, ib);
+    setMotorSpeed(motorD, id);
+
+    // Atualiza timestamp
+    lastCommandTime = millis();
   }
   
   // Para todos os motores

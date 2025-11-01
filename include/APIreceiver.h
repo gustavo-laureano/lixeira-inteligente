@@ -1,16 +1,8 @@
-/*
- * robot_receiver.h
- * * Tradução do script Python api_receiver.py para C++/Arduino (ESP32).
- * * Este código transforma o ESP32 em um cliente WebSocket que se conecta
- * a um servidor broker (o mesmo que o script Python usava).
- * * Requer a biblioteca 'WebSockets' por Markus Sattler.
-*/
-
-#pragma once // Evita inclusões múltiplas do header
+#pragma once
 
 #include <WiFi.h>
 #include <WebSocketsClient.h>
-#include <functional> // Para std::bind
+#include <functional> 
 
 // ===== CONFIGURAÇÃO =====
 // Ajuste estes valores conforme seu ambiente
@@ -23,9 +15,10 @@ const int RECONNECT_DELAY_MS = 5000; // 5 segundos
 
 // =======================
 
-// Função "placeholder" que será chamada com o comando
+// Função "placeholder" que será chamada com o comando de vetor
 // Você DEVE implementar esta função no seu arquivo .ino principal.
-extern void handleRobotCommand(String command);
+// handleRobotVector(float vy, float vx): novo protocolo de vetor (sem rotação)
+extern void handleRobotVector(float vy, float vx);
 
 /*
 // ===== OPÇÃO 2: Se você quer que o ESP32 retransmita para outro Arduino =====
@@ -64,25 +57,29 @@ private:
         Serial.print(message);
         Serial.println("'");
         
-        // Valida comando (caracteres únicos permitidos)
-        if (message.length() == 1) {
-            char cmd = message.charAt(0);
-            
-            // Converte para minúsculo
-            if (cmd >= 'A' && cmd <= 'Z') {
-                cmd = cmd + 32; // 'a' - 'A' = 32
-            }
-            
-            if (cmd == 'w' || cmd == 'a' || cmd == 's' || cmd == 'd' ||
-                cmd == 'q' || cmd == 'e' || cmd == 'x') 
-            {
-                // Chama a função principal no .ino para executar o comando
-                handleRobotCommand(String(cmd));
+        // Suporta apenas o novo protocolo de vetor: "V:<vy>,<vx>"
+        if (message.length() >= 2 && (message.charAt(0) == 'V' || message.charAt(0) == 'v') && message.charAt(1) == ':') {
+            // Ex: V:1.0,0.3
+            String rest = message.substring(2);
+            rest.trim();
 
-                // Se estiver usando a OPÇÃO 2 (retransmitir)
-                // forwardCommandToArduino(String(cmd)); 
+            int idx = rest.indexOf(',');
+            if (idx > 0) {
+                String sVy = rest.substring(0, idx);
+                String sVx = rest.substring(idx + 1);
+
+                sVy.trim(); sVx.trim();
+
+                float vy = sVy.toFloat();
+                float vx = sVx.toFloat();
+
+                Serial.print("Vetor recebido -> Vy:"); Serial.print(vy);
+                Serial.print(" Vx:"); Serial.println(vx);
+
+                // Chama o handler que deve ser implementado no sketch principal
+                handleRobotVector(vy, vx);
             } else {
-                Serial.print("Comando inválido ignorado: ");
+                Serial.print("Protocolo V: inválido. Esperado V:vy,vx - recebido: ");
                 Serial.println(message);
             }
         } else {

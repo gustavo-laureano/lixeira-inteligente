@@ -97,10 +97,14 @@ class RobotReceiver:
         # Remove espaços em branco
         command = message.strip()
         
-        # Valida comando (caracteres únicos permitidos)
-        valid_commands = ['w', 'a', 's', 'd', 'q', 'e', 'x']
-        if len(command) == 1 and command.lower() in valid_commands:
-            self.send_to_arduino(command.lower())
+        # Valida apenas o novo protocolo de vetor V:vy,vx
+        if command.lower().startswith('v:'):
+            # Encaminha diretamente o vetor para o Arduino (ex.: V:1.0,0.0)
+            # Validação simples: deve conter exatamente uma vírgula (vy,vx)
+            if command.count(',') >= 1:
+                self.send_to_arduino(command)
+            else:
+                logger.warning(f"Protocolo V: inválido (esperado V:vy,vx): {command}")
         else:
             logger.warning(f"Comando inválido ignorado: {command}")
     

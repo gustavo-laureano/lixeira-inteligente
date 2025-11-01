@@ -30,6 +30,10 @@
 #define MAX_SPEED          200
 #define MIN_SPEED          40
 
+// Escalonamento para velocidade de rotação enviado no vetor (0..1)
+// 1.0 = rotações sem escala, valores menores reduzem a influência da rotação
+#define ROTATION_SCALE     0.6
+
 // Configurações gerais
 #define STATUS_LED_PIN      2
 #define SERIAL_BAUDRATE     115200

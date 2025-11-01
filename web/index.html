@@ -2,13 +2,16 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Controle Virtual - Lixeira Inteligente</title>
+
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+            -webkit-user-select: none; /* Impede seleção de texto */
+            user-select: none;
         }
 
         body {
@@ -19,14 +22,21 @@
             justify-content: center;
             align-items: center;
             padding: 20px;
+            overscroll-behavior-y: contain; 
         }
 
         .container {
             background: white;
-            padding: 40px;
-            max-width: 500px;
+            padding: 60px;
+            max-width: 600px;
             width: 100%;
             border: 1px solid #ddd;
+            position: relative;
+            z-index: 10;
+            display: grid;
+
+            gap: 12px;
+            align-items: start;
         }
 
         h1 {
@@ -89,17 +99,10 @@
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
-
-        .control-grid {
+        
+        .control-grid-actions {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 8px;
-            margin-bottom: 15px;
-        }
-
-        .control-grid-rotation {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
             gap: 8px;
             margin-bottom: 15px;
         }
@@ -113,12 +116,11 @@
             color: #000;
             cursor: pointer;
             transition: background 0.1s;
-            user-select: none;
             touch-action: manipulation;
         }
 
-        .btn:active {
-            background: #f5f5f5;
+        .btn:active, .btn.active {
+            background: #f0f0f0;
         }
 
         .btn:disabled {
@@ -127,7 +129,13 @@
         }
 
         .btn-stop {
-            grid-column: 1 / -1;
+            background: #ffebee;
+            border-color: #f44336;
+        }
+        
+        .btn-stop:active, .btn-stop.active {
+            background: #f44336;
+            color: white;
         }
 
         .btn-test {
@@ -140,262 +148,258 @@
             padding-top: 30px;
             border-top: 1px solid #eee;
         }
+        .config-input-group { margin-bottom: 12px; }
+        .config-input-group label { display: block; font-size: 12px; color: #999; margin-bottom: 6px; }
+        .config-input-group input { width: 100%; padding: 10px; border: 1px solid #ddd; font-size: 14px; background: white; }
+        .config-input-group input:focus { outline: none; border-color: #000; }
+        .btn-connect { width: 100%; padding: 12px; background: #000; color: white; font-size: 14px; font-weight: 400; border: none; cursor: pointer; transition: opacity 0.1s; }
+        .btn-connect:hover { opacity: 0.8; }
+        .btn-connect:disabled { opacity: 0.3; cursor: not-allowed; }
 
-        .config-input-group {
-            margin-bottom: 12px;
+        .joystick-row {
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
 
-        .config-input-group label {
+        #joystick-zone {
+            width: 240px;
+            height: 240px;
+            background: rgba(0, 0, 0, 0.08);
+            border-radius: 50%;
             display: block;
-            font-size: 12px;
-            color: #999;
-            margin-bottom: 6px;
+            position: relative;
+            z-index: 1000;
+            margin: 0 auto;
         }
 
-        .config-input-group input {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            font-size: 14px;
-            background: white;
+        .nipple .front {
+            background: rgba(0, 0, 0, 0.4) !important;
+            border: 2px solid white;
         }
-
-        .config-input-group input:focus {
-            outline: none;
-            border-color: #000;
-        }
-
-        .btn-connect {
-            width: 100%;
-            padding: 12px;
-            background: #000;
-            color: white;
-            font-size: 14px;
-            font-weight: 400;
-            border: none;
-            cursor: pointer;
-            transition: opacity 0.1s;
-        }
-
-        .btn-connect:hover {
-            opacity: 0.8;
-        }
-
-        .btn-connect:disabled {
-            opacity: 0.3;
-            cursor: not-allowed;
-        }
-
-        @media (max-width: 480px) {
-            .container {
-                padding: 30px 20px;
-            }
-
-            .btn {
-                padding: 14px;
-                font-size: 13px;
-            }
+        .nipple .back {
+            background: rgba(255, 255, 255, 0.2) !important;
         }
     </style>
 </head>
 <body>
+    
     <div class="container">
-        <h1>Controle</h1>
-
-        <!-- Status da Conexão -->
-        <div class="status-section">
-            <div class="status-indicator">
-                <div class="status-dot" id="statusDot"></div>
-                <span class="status-text" id="statusText">Desconectado</span>
-            </div>
-            <div class="latency-info">
-                <span class="latency-value" id="latencyValue">--</span> ms
-            </div>
+ 		<h1>Controle Vetorial</h1>
+ 
+ 		<div class="status-section">
+ 			<div class="status-indicator">
+ 				<div class="status-dot" id="statusDot"></div>
+ 				<span class="status-text" id="statusText">Desconectado</span>
+ 			</div>
+ 			<div class="latency-info">
+ 				<span class="latency-value" id="latencyValue">--</span> ms
+ 			</div>
+ 		</div>
+ 
+ 		<div class="controls-section">
+ 			<div class="section-title">Rotação (Teclado: Q/E)</div>
+ 			<div class="control-grid-actions">
+ 				<button class="btn" id="btnQ" data-cmd="q">Girar Esq</button>
+ 				<button class="btn btn-stop" id="btnStop" data-cmd="x">PARAR</button>
+ 				<button class="btn" id="btnE" data-cmd="e">Girar Dir</button>
+ 			</div>
+ 			<button class="btn btn-test" id="btnTestLatency">Testar Latência</button>
+ 		</div>
+ 
+        <div>
+        <div id="joystick-zone"></div>
         </div>
-
-        <!-- Controles de Movimento -->
-        <div class="controls-section">
-            <div class="section-title">Movimento</div>
-            <div class="control-grid">
-                <div></div>
-                <button class="btn" id="btnW" data-cmd="w">Frente</button>
-                <div></div>
-                <button class="btn" id="btnA" data-cmd="a">Esquerda</button>
-                <div></div>
-                <button class="btn" id="btnD" data-cmd="d">Direita</button>
-                <div></div>
-                <button class="btn" id="btnS" data-cmd="s">Trás</button>
-                <div></div>
-                <button class="btn btn-stop" id="btnStop" data-cmd="x">Parar</button>
-                <div></div>
-            </div>
-
-            <div class="section-title">Rotação</div>
-            <div class="control-grid-rotation">
-                <button class="btn" id="btnQ" data-cmd="q">Girar Esq</button>
-                <button class="btn" id="btnE" data-cmd="e">Girar Dir</button>
-            </div>
-
-            <button class="btn btn-test" id="btnTestLatency">Testar Latência</button>
-        </div>
-
-        <!-- Configuração de Conexão -->
-        <div class="config-section">
-            <div class="config-input-group">
-                <label for="serverInput">Servidor</label>
-                <input type="text" id="serverInput" placeholder="ws://localhost:8000/ws/controller" value="ws://localhost:8000/ws/controller">
-            </div>
-            <button class="btn-connect" id="btnConnect">Conectar</button>
-        </div>
-    </div>
-
-    <script>
+ 		<div class="config-section">
+ 			<div class="config-input-group">
+ 				<label for="serverInput">Servidor</label>
+ 				<input type="text" id="serverInput" placeholder="ws://localhost:8000/ws/controller" value="ws://localhost:8000/ws/controller">
+ 			</div>
+ 			<button class="btn-connect" id="btnConnect">Conectar</button>
+ 		</div>
+ 	</div>
+ 
+ 	<script src="https://cdn.jsdelivr.net/npm/nipplejs@0.9.0/dist/nipplejs.min.js"></script>
+ 
+ 	<script>
         class RobotController {
             constructor() {
                 this.ws = null;
                 this.isConnected = false;
                 this.pingStartTime = null;
                 
-                // Referências DOM
+                this.vector = { vy: 0.0, vx: 0.0, vrot: 0.0 };
+                this.keysPressed = new Set(); // Para rotação
+                this.sendLoopInterval = null;
+                this.joystickManager = null; // Armazena o 'manager' do nipplejs
+
+                this.keyMap = {
+                    'q': { axis: 'vrot', value: -1.0 }, // Girar Esquerda
+                    'e': { axis: 'vrot', value: 1.0 }  // Girar Direita
+                };
+                
                 this.statusDot = document.getElementById('statusDot');
                 this.statusText = document.getElementById('statusText');
                 this.latencyValue = document.getElementById('latencyValue');
                 this.serverInput = document.getElementById('serverInput');
                 this.btnConnect = document.getElementById('btnConnect');
-                
-                // Botões de comando
-                this.btnW = document.getElementById('btnW');
-                this.btnA = document.getElementById('btnA');
-                this.btnS = document.getElementById('btnS');
-                this.btnD = document.getElementById('btnD');
                 this.btnQ = document.getElementById('btnQ');
                 this.btnE = document.getElementById('btnE');
                 this.btnStop = document.getElementById('btnStop');
                 this.btnTestLatency = document.getElementById('btnTestLatency');
                 
                 this.initEventListeners();
+                this.updateStatus(false);
+            }
+            
+            initJoystick() {
+                // Verifica se a biblioteca foi carregada corretamente
+                if (typeof nipplejs === 'undefined') {
+                    console.error('NippleJS não carregou!');
+                    alert('Erro: Biblioteca do Joystick não carregou.');
+                    return;
+                }
+                
+                const options = {
+                    zone: document.getElementById('joystick-zone'),
+                    mode: 'static', 
+                    position: { left: '50%', top: '50%' },
+                    color: 'rgba(0,0,0,0.5)',
+                    size: 150,
+                    threshold: 0.1,
+                    fadeTime: 250
+                };
+                
+                this.joystickManager = nipplejs.create(options);
+                
+                // Pega o único joystick criado
+                const joystick = this.joystickManager.get();
+
+                joystick.on('move', (evt, data) => {
+                    if (data.vector) {
+                        this.vector.vx = data.vector.x;
+                        this.vector.vy = -data.vector.y; // Invertemos Y
+                    }
+                });
+
+                joystick.on('end', () => {
+                    this.vector.vx = 0.0;
+                    this.vector.vy = 0.0;
+                });
             }
 
             initEventListeners() {
-                // Botão de conexão
                 this.btnConnect.addEventListener('click', () => {
-                    if (this.isConnected) {
-                        this.disconnect();
-                    } else {
-                        this.connect();
+                    this.isConnected ? this.disconnect() : this.connect();
+                });
+                
+                this.btnTestLatency.addEventListener('click', () => this.testLatency());
+
+                const stopAction = (e) => {
+                    e.preventDefault();
+                    this.vector = { vy: 0.0, vx: 0.0, vrot: 0.0 };
+                    this.keysPressed.clear();
+                    
+                    // Reseta visualmente o joystick
+                    if (this.joystickManager) {
+                        // Acessa o nipple através do manager
+                        const nipple = this.joystickManager.get(0);
+                        if (nipple && nipple.ui.front) {
+                            nipple.ui.front.style.transform = 'translate(0px, 0px)';
+                        }
                     }
-                });
+                    
+                    this.sendVector(); // Envia parada imediatamente
+                };
+                this.btnStop.addEventListener('mousedown', stopAction);
+                this.btnStop.addEventListener('touchstart', stopAction, { passive: false });
 
-                // Botões de movimento - mousedown/touchstart
-                const movementButtons = [this.btnW, this.btnA, this.btnS, this.btnD, this.btnQ, this.btnE];
-                movementButtons.forEach(btn => {
-                    const cmd = btn.dataset.cmd;
-                    
-                    // Mouse events
-                    btn.addEventListener('mousedown', (e) => {
-                        e.preventDefault();
-                        this.sendCommand(cmd);
-                    });
-                    
-                    btn.addEventListener('mouseup', (e) => {
-                        e.preventDefault();
-                        this.sendCommand('x'); // Para ao soltar
-                    });
-                    
-                    btn.addEventListener('mouseleave', () => {
-                        this.sendCommand('x'); // Para se o mouse sair do botão
-                    });
-                    
-                    // Touch events (mobile)
-                    btn.addEventListener('touchstart', (e) => {
-                        e.preventDefault();
-                        this.sendCommand(cmd);
-                    });
-                    
-                    btn.addEventListener('touchend', (e) => {
-                        e.preventDefault();
-                        this.sendCommand('x'); // Para ao soltar
-                    });
-                    
-                    btn.addEventListener('touchcancel', (e) => {
-                        e.preventDefault();
-                        this.sendCommand('x'); // Para se o touch for cancelado
-                    });
-                });
 
-                // Botão de parada (apenas click)
-                this.btnStop.addEventListener('click', () => {
-                    this.sendCommand('x');
-                });
-
-                // Botão de teste de latência
-                this.btnTestLatency.addEventListener('click', () => {
-                    this.testLatency();
-                });
-
-                // Enter no input para conectar
-                this.serverInput.addEventListener('keypress', (e) => {
-                    if (e.key === 'Enter' && !this.isConnected) {
-                        this.connect();
-                    }
-                });
-
-                // Controle por teclado (W, A, S, D, Q, E)
-                this.activeKeys = new Set();
+                // Teclado para ROTAÇÃO ('q', 'e')
                 document.addEventListener('keydown', (e) => {
-                    // Ignora se estiver digitando no input
-                    if (e.target === this.serverInput || e.target.tagName === 'INPUT') {
-                        return;
-                    }
-
+                    if (e.target.tagName === 'INPUT' || e.repeat) return;
                     const key = e.key.toLowerCase();
-                    const keyMap = {
-                        'w': 'w',
-                        'a': 'a',
-                        's': 's',
-                        'd': 'd',
-                        'q': 'q',
-                        'e': 'e'
-                    };
-
-                    if (keyMap[key] && !this.activeKeys.has(key)) {
-                        this.activeKeys.add(key);
-                        this.sendCommand(keyMap[key]);
+                    if (this.keyMap[key]) {
+                        e.preventDefault();
+                        this.keysPressed.add(key);
+                        if (key === 'q') this.btnQ.classList.add('active');
+                        if (key === 'e') this.btnE.classList.add('active');
                     }
                 });
 
                 document.addEventListener('keyup', (e) => {
                     const key = e.key.toLowerCase();
-                    if (this.activeKeys.has(key)) {
-                        this.activeKeys.delete(key);
-                        // Para o movimento quando soltar a tecla
-                        this.sendCommand('x');
+                    if (this.keyMap[key]) {
+                        e.preventDefault();
+                        this.keysPressed.delete(key);
+                        if (key === 'q') this.btnQ.classList.remove('active');
+                        if (key === 'e') this.btnE.classList.remove('active');
                     }
                 });
+                
+                // Botões de Rotação (para Mobile)
+                const setupButton = (btn, key) => {
+                    const press = (e) => {
+                        e.preventDefault();
+                        this.keysPressed.add(key);
+                        btn.classList.add('active');
+                    };
+                    const release = (e) => {
+                        e.preventDefault();
+                        this.keysPressed.delete(key);
+                        btn.classList.remove('active');
+                    };
+                    btn.addEventListener('mousedown', press);
+                    btn.addEventListener('mouseup', release);
+                    btn.addEventListener('mouseleave', release); 
+                    btn.addEventListener('touchstart', press, { passive: false });
+                    btn.addEventListener('touchend', release, { passive: false });
+                };
+                
+                setupButton(this.btnQ, 'q');
+                setupButton(this.btnE, 'e');
+            }
+            
+            startSendLoop() {
+                if (this.sendLoopInterval) return; 
+                
+                this.sendLoopInterval = setInterval(() => {
+                    
+                    this.vector.vrot = 0.0;
+                    if (this.keysPressed.has('q')) {
+                        this.vector.vrot = -1.0;
+                    } else if (this.keysPressed.has('e')) {
+                        this.vector.vrot = 1.0;
+                    }
+                    
+                    this.sendVector();
+                    
+                }, 50); // 20 Hz
             }
 
+            stopSendLoop() {
+                if (this.sendLoopInterval) {
+                    clearInterval(this.sendLoopInterval);
+                    this.sendLoopInterval = null;
+                }
+                this.vector = { vy: 0.0, vx: 0.0, vrot: 0.0 };
+                this.sendVector();
+            }
+            
+            sendVector() {
+                const { vy, vx, vrot } = this.vector;
+                const cmd = `V:${vy.toFixed(2)},${vx.toFixed(2)},${vrot.toFixed(2)}`;
+                this.sendCommand(cmd);
+            }
+            
             connect() {
                 let serverUri = this.serverInput.value.trim();
                 
-                if (!serverUri) {
-                    alert('Por favor, insira a URI do servidor');
-                    return;
-                }
-
-                // Converte automaticamente http:// para ws:// e https:// para wss://
-                if (serverUri.startsWith('http://')) {
-                    serverUri = serverUri.replace('http://', 'ws://');
-                    this.serverInput.value = serverUri;
-                    console.log('Protocolo convertido de http:// para ws://');
-                } else if (serverUri.startsWith('https://')) {
-                    serverUri = serverUri.replace('https://', 'wss://');
-                    this.serverInput.value = serverUri;
-                    console.log('Protocolo convertido de https:// para wss://');
-                }
-
-                // Valida se tem o protocolo correto
+                if (!serverUri) { alert('Por favor, insira a URI do servidor'); return; }
+                if (serverUri.startsWith('http://')) serverUri = serverUri.replace('http://', 'ws://');
+                if (serverUri.startsWith('https://')) serverUri = serverUri.replace('https://', 'wss://');
                 if (!serverUri.startsWith('ws://') && !serverUri.startsWith('wss://')) {
-                    alert('URI inválida! Use ws:// ou wss:// (ex: ws://127.0.0.1:8000/ws/controller)');
+                    alert('URI inválida! Use ws:// ou wss://');
                     return;
                 }
 
@@ -407,59 +411,38 @@
                         console.log('WebSocket conectado');
                         this.isConnected = true;
                         this.updateStatus(true);
-                        this.btnConnect.textContent = 'Desconectar';
+                        this.initJoystick(); // <-- Inicializa o joystick AQUI
+                        this.startSendLoop(); 
                     };
 
                     this.ws.onmessage = (event) => {
                         const message = event.data;
-                        
-                        // Teste de latência
                         if (message === 'pong' && this.pingStartTime !== null) {
                             const latency = performance.now() - this.pingStartTime;
                             this.latencyValue.textContent = latency.toFixed(1);
                             this.pingStartTime = null;
-                            console.log(`Latência RTT: ${latency.toFixed(1)} ms`);
-                        } else {
-                            console.log('Mensagem recebida:', message);
                         }
                     };
 
                     this.ws.onerror = (error) => {
                         console.error('Erro WebSocket:', error);
-                        let errorMsg = 'Erro ao conectar. ';
-                        
-                        // Verifica se o servidor está rodando
-                        if (serverUri.includes('127.0.0.1') || serverUri.includes('localhost')) {
-                            errorMsg += 'Verifique se o servidor está rodando (python api_server.py)';
-                        } else {
-                            errorMsg += 'Verifique a URI do servidor e se ele está acessível.';
-                        }
-                        
-                        alert(errorMsg);
                         this.updateStatus(false);
                     };
 
                     this.ws.onclose = (event) => {
-                        console.log('WebSocket desconectado', event.code, event.reason);
+                        console.log('WebSocket desconectado');
                         this.isConnected = false;
                         this.updateStatus(false);
-                        this.btnConnect.textContent = 'Conectar';
-                        
-                        // Mostra mensagem se foi fechado com erro
-                        if (event.code !== 1000) {
-                            let closeMsg = 'Conexão fechada. ';
-                            if (event.code === 1006) {
-                                closeMsg += 'Servidor não encontrado ou não está rodando.';
-                            } else {
-                                closeMsg += `Código: ${event.code}`;
-                            }
-                            console.warn(closeMsg);
+                        this.stopSendLoop(); 
+                        if (this.joystickManager) {
+                            this.joystickManager.destroy(); // Destrói o joystick ao desconectar
+                            this.joystickManager = null;
                         }
                     };
 
                 } catch (error) {
                     console.error('Erro ao criar WebSocket:', error);
-                    alert('Erro ao criar conexão WebSocket: ' + error.message);
+                    alert('Erro ao criar conexão: ' + error.message);
                 }
             }
 
@@ -468,23 +451,14 @@
                     this.ws.close();
                     this.ws = null;
                 }
-                this.isConnected = false;
-                this.updateStatus(false);
-                this.btnConnect.textContent = 'Conectar';
+                // onclose() vai lidar com o resto (parar loop, destruir joystick)
             }
 
             sendCommand(cmd) {
-                if (!this.isConnected || !this.ws) {
-                    console.warn('Não conectado. Comando ignorado:', cmd);
+                if (!this.isConnected || !this.ws || this.ws.readyState !== WebSocket.OPEN) {
                     return;
                 }
-
-                if (this.ws.readyState === WebSocket.OPEN) {
-                    this.ws.send(cmd);
-                    console.log('Comando enviado:', cmd);
-                } else {
-                    console.warn('WebSocket não está aberto');
-                }
+                this.ws.send(cmd);
             }
 
             testLatency() {
@@ -492,7 +466,6 @@
                     alert('Conecte-se ao servidor primeiro');
                     return;
                 }
-
                 this.pingStartTime = performance.now();
                 this.sendCommand('ping');
                 this.latencyValue.textContent = '...';
@@ -502,26 +475,19 @@
                 this.statusDot.className = `status-dot ${connected ? 'connected' : 'disconnected'}`;
                 this.statusText.textContent = connected ? 'Conectado' : 'Desconectado';
                 
-                // Desabilita botões se desconectado
-                const buttons = [this.btnW, this.btnA, this.btnS, this.btnD, this.btnQ, this.btnE, this.btnStop, this.btnTestLatency];
+                const buttons = [this.btnQ, this.btnE, this.btnStop, this.btnTestLatency];
                 buttons.forEach(btn => {
                     btn.disabled = !connected;
                 });
+                
+                document.getElementById('joystick-zone').style.display = connected ? 'block' : 'none';
             }
         }
 
-        // Inicializa o controlador quando a página carregar
         document.addEventListener('DOMContentLoaded', () => {
             new RobotController();
         });
 
-        // Previne comportamento padrão de scroll em mobile ao tocar nos botões
-        document.addEventListener('touchmove', (e) => {
-            if (e.target.classList.contains('btn')) {
-                e.preventDefault();
-            }
-        }, { passive: false });
     </script>
 </body>
 </html>
-

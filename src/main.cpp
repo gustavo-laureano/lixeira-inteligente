@@ -19,13 +19,7 @@ void printWelcomeMessage() {
 
 void printControlInstructions() {
   Serial.println("Comandos aceitos via WebSocket:");
-  Serial.println("- 'w' = Frente");
-  Serial.println("- 's' = Tras");
-  Serial.println("- 'a' = Esquerda");
-  Serial.println("- 'd' = Direita");
-  Serial.println("- 'q' = Girar Esquerda");
-  Serial.println("- 'e' = Girar Direita");
-  Serial.println("- 'x' = Parar");
+  Serial.println("- 'V:vy,vx' = Vetor de movimento continuo (vy:-1..1, vx:-1..1)");
 }
 
 void printSystemStatus() {
@@ -110,32 +104,18 @@ void loop() {
   delay(10);
 }
 
-// Implementação da função que será chamada pelo APIreceiver.h
-// Converte um comando simples (um caracter) em um DadosMovimento
-void handleRobotCommand(String command) {
-  if (command.length() == 0) return;
-  char c = command.charAt(0);
-  // Normaliza para minúscula
-  if (c >= 'A' && c <= 'Z') c = c + 32;
+// Handler para o novo protocolo de vetor: V:vy,vx
+void handleRobotVector(float vy, float vx) {
+  // Garante limites -1.0 .. 1.0
+  vy = constrain(vy, -1.0f, 1.0f);
+  vx = constrain(vx, -1.0f, 1.0f);
 
-  DadosMovimento dm;
-  dm.velocidade = DEFAULT_SPEED;
-  dm.ativo = true;
-  dm.timestamp = millis();
-
-  switch (c) {
-    case 'w': dm.comando = MOVER_FRENTE; break;    // frente
-    case 's': dm.comando = MOVER_TRAS; break;      // trás
-    case 'a': dm.comando = MOVER_ESQUERDA; break;  // esquerda
-    case 'd': dm.comando = MOVER_DIREITA; break;   // direita
-    case 'q': dm.comando = GIRAR_ESQUERDA; break;  // girar esquerda
-    case 'e': dm.comando = GIRAR_DIREITA; break;   // girar direita
-    case 'x': dm.comando = PARAR; dm.ativo = false; break; // parar
-    default:
-      // Comando desconhecido: ignora
-      return;
+  // Se ambos zeros, para os motores
+  if (fabs(vy) < 0.0001f && fabs(vx) < 0.0001f) {
+    mecanumDrive.stopAllMotors();
+    return;
   }
 
-  // Executa o movimento imediatamente
-  mecanumDrive.executeMovement(dm);
+  // Encaminha para o controlador de cinemática inversa (sem rotação)
+  mecanumDrive.executeVector(vy, vx);
 }
