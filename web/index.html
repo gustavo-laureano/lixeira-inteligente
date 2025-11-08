@@ -278,7 +278,7 @@
                 joystick.on('move', (evt, data) => {
                     if (data.vector) {
                         this.vector.vx = data.vector.x;
-                        this.vector.vy = -data.vector.y; // Invertemos Y
+                        this.vector.vy = data.vector.y; 
                     }
                 });
 
