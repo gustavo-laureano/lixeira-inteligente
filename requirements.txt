@@ -16,8 +16,8 @@ pyserial==3.5
 # NumPy (versão estável)
 numpy==1.24.3
 
-# Pillow para processamento de imagens
-Pillow==10.0.0
+# Pillow para processamento de imagens e interface gráfica
+Pillow>=10.0.0
 
 # Torch e TorchVision (para CPU/ARM)
 # Nota: Para Raspberry Pi, pode ser necessário instalar versões específicas

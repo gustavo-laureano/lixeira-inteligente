@@ -18,38 +18,144 @@ class CameraManager:
         self.ret = False
         self.is_running = False
         self.lock = threading.Lock()
+        self.cap = None
         
-        # Inicializa câmera
-        print(f"Inicializando câmera {src}...")
-        self.cap = cv2.VideoCapture(self.src, cv2.CAP_DSHOW)
+        # Tenta abrir a câmera com diferentes backends
+        self._open_camera()
+    
+    def _open_camera(self):
+        """Tenta abrir a câmera com diferentes backends"""
+        print(f"🔍 Tentando abrir câmera {self.src}...")
         
-        if not self.cap.isOpened():
-            raise ValueError(f"Erro: Não foi possível abrir a câmera {self.src}")
+        # Lista de backends para tentar (ordem de prioridade)
+        backends = [
+            (cv2.CAP_DSHOW, "DirectShow (Windows)"),
+            (cv2.CAP_MSMF, "Media Foundation (Windows)"),
+            (cv2.CAP_ANY, "Auto-detect"),
+        ]
         
-        # Aquece a câmera
-        print("Aquecendo câmera...")
-        for _ in range(10):
-            self.cap.read()
-        print("Câmera pronta!")
+        for backend, name in backends:
+            print(f"  Tentando {name}...")
+            try:
+                self.cap = cv2.VideoCapture(self.src, backend)
+                
+                if self.cap.isOpened():
+                    # Testa se consegue ler um frame
+                    ret, test_frame = self.cap.read()
+                    if ret and test_frame is not None:
+                        print(f"  ✅ Câmera aberta com sucesso usando {name}")
+                        
+                        # Aquece a câmera
+                        print("  Aquecendo câmera...")
+                        for _ in range(10):
+                            self.cap.read()
+                        print("  ✅ Câmera pronta!")
+                        return
+                    else:
+                        print(f"  ❌ Câmera abriu mas não consegue ler frames")
+                        self.cap.release()
+                else:
+                    print(f"  ❌ Não conseguiu abrir com {name}")
+            except Exception as e:
+                print(f"  ❌ Erro ao tentar {name}: {e}")
+        
+        # Se chegou aqui, nenhum backend funcionou
+        self._show_available_cameras()
+        raise ValueError(
+            f"❌ Erro: Não foi possível abrir a câmera {self.src}\n"
+            f"Possíveis causas:\n"
+            f"  1. Câmera não está conectada\n"
+            f"  2. Câmera está sendo usada por outro programa\n"
+            f"  3. ID da câmera incorreto (tente outro número)\n"
+            f"  4. Drivers da câmera não instalados\n"
+            f"\nTente fechar outros programas que podem estar usando a câmera."
+        )
+    
+    @staticmethod
+    def _show_available_cameras(max_test=5):
+        """Lista câmeras disponíveis no sistema"""
+        print("\n🔍 Procurando câmeras disponíveis...")
+        available = []
+        
+        for i in range(max_test):
+            try:
+                cap = cv2.VideoCapture(i, cv2.CAP_ANY)
+                if cap.isOpened():
+                    ret, _ = cap.read()
+                    if ret:
+                        available.append(i)
+                        print(f"  ✅ Câmera encontrada no ID: {i}")
+                cap.release()
+            except:
+                pass
+        
+        if available:
+            print(f"\n💡 Câmeras disponíveis: {available}")
+            print(f"💡 Tente usar: CameraManager(src={available[0]})")
+        else:
+            print("\n❌ Nenhuma câmera encontrada no sistema")
+            print("💡 Verifique se a câmera está conectada e os drivers instalados")
+    
+    @staticmethod
+    def list_cameras(max_test=10):
+        """Lista todas as câmeras disponíveis"""
+        print("🔍 Procurando câmeras disponíveis...")
+        available = []
+        
+        for i in range(max_test):
+            try:
+                # Tenta diferentes backends
+                for backend in [cv2.CAP_DSHOW, cv2.CAP_MSMF, cv2.CAP_ANY]:
+                    cap = cv2.VideoCapture(i, backend)
+                    if cap.isOpened():
+                        ret, frame = cap.read()
+                        if ret and frame is not None:
+                            h, w = frame.shape[:2]
+                            available.append({
+                                'id': i,
+                                'resolution': f"{w}x{h}",
+                                'backend': backend
+                            })
+                            print(f"  ✅ ID {i}: {w}x{h}")
+                            cap.release()
+                            break
+                    cap.release()
+            except Exception as e:
+                pass
+        
+        if available:
+            print(f"\n✅ Total de câmeras encontradas: {len(available)}")
+            return available
+        else:
+            print("\n❌ Nenhuma câmera encontrada")
+            return []
     
     def start(self):
         """Inicia a captura de frames em thread separada"""
         if self.is_running:
-            print("Câmera já está rodando")
+            print("⚠️  Câmera já está rodando")
             return self
+        
+        if not self.cap or not self.cap.isOpened():
+            raise ValueError("Câmera não está aberta. Não é possível iniciar.")
         
         self.is_running = True
         self.thread = threading.Thread(target=self._capture_loop, daemon=True)
         self.thread.start()
-        print("Captura iniciada em thread separada")
+        print("✅ Captura iniciada em thread separada")
         return self
     
     def _capture_loop(self):
         """Loop de captura (roda em thread separada)"""
+        consecutive_failures = 0
+        max_failures = 30  # 30 falhas consecutivas = ~1 segundo
+        
         while self.is_running:
             ret, frame = self.cap.read()
             
-            if ret:
+            if ret and frame is not None:
+                consecutive_failures = 0  # Reset contador
+                
                 # Crop para quadrado (pega o centro da imagem)
                 h, w = frame.shape[:2]
                 size = min(h, w)
@@ -64,6 +170,12 @@ class CameraManager:
                 with self.lock:
                     self.frame = frame
                     self.ret = ret
+            else:
+                consecutive_failures += 1
+                if consecutive_failures >= max_failures:
+                    print(f"❌ Erro: Muitas falhas consecutivas na leitura da câmera")
+                    self.is_running = False
+                    break
             
             # Controla FPS
             time.sleep(1 / self.fps)
@@ -82,14 +194,15 @@ class CameraManager:
     
     def stop(self):
         """Para a captura e libera recursos"""
-        print("Parando câmera...")
+        print("⏹️  Parando câmera...")
         self.is_running = False
         
         if hasattr(self, 'thread'):
             self.thread.join(timeout=2.0)
         
-        self.cap.release()
-        print("Câmera liberada")
+        if self.cap:
+            self.cap.release()
+        print("✅ Câmera liberada")
     
     def __enter__(self):
         return self.start()
@@ -98,30 +211,68 @@ class CameraManager:
         self.stop()
     
     def __del__(self):
-        if hasattr(self, 'cap'):
+        if hasattr(self, 'cap') and self.cap:
             self.stop()
 
 
 if __name__ == "__main__":
-    camera = CameraManager(src=0, size=DEFAULT_SIZE, fps=DEFAULT_FPS)
-    camera.start()
+    # Primeiro, lista câmeras disponíveis
+    print("=" * 60)
+    print("TESTE DO CAMERA MANAGER")
+    print("=" * 60)
     
-    print("Capturando frames. Pressione 'q' para sair.")
+    cameras = CameraManager.list_cameras()
+    
+    if not cameras:
+        print("\n❌ Nenhuma câmera disponível. Encerrando.")
+        exit(1)
+    
+    # Usa a primeira câmera disponível
+    camera_id = cameras[0]['id']
+    print(f"\n🎥 Usando câmera ID: {camera_id}")
     
     try:
+        camera = CameraManager(src=camera_id, size=DEFAULT_SIZE, fps=DEFAULT_FPS)
+        camera.start()
+        
+        print("\n✅ Sistema iniciado!")
+        print("📹 Mostrando vídeo. Pressione 'q' para sair.")
+        print("-" * 60)
+        
+        frame_count = 0
+        start_time = time.time()
+        
         while True:
             frame = camera.get_frame()
             
             if frame is not None:
-                cv2.putText(frame, "Camera Manager Test", (10, 30), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-                cv2.imshow("Camera Manager", frame)
+                frame_count += 1
+                elapsed = time.time() - start_time
+                fps = frame_count / elapsed if elapsed > 0 else 0
+                
+                # Adiciona informações no frame
+                cv2.putText(frame, f"Camera ID: {camera_id}", (10, 30), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                cv2.putText(frame, f"FPS: {fps:.1f}", (10, 60), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                cv2.putText(frame, f"Resolucao: {frame.shape[1]}x{frame.shape[0]}", (10, 90), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                
+                cv2.imshow("Camera Manager Test", frame)
                 
                 if cv2.waitKey(1) & 0xFF == ord('q'):
+                    print("\n👋 Encerrando por comando do usuário")
                     break
             else:
-                print("Aguardando frame...")
+                print("⏳ Aguardando frame...")
                 time.sleep(0.1)
+                
+    except ValueError as e:
+        print(f"\n{e}")
+    except KeyboardInterrupt:
+        print("\n👋 Encerrando por Ctrl+C")
     finally:
-        camera.stop()
+        if 'camera' in locals():
+            camera.stop()
         cv2.destroyAllWindows()
+        print("\n✅ Programa finalizado")
