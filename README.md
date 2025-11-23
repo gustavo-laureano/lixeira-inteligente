@@ -1,10 +1,11 @@
-# 🗑️ Lixeira Inteligente - Sistema YOLO para Raspberry Pi
+# 🗑️ Lixeira Inteligente - Sistema de Detecção Customizado
 
-Este projeto consiste no desenvolvimento de um sistema robótico autônomo para interceptação de objetos em pleno voo. O núcleo do sistema utiliza visão computacional, implementando o modelo YOLO (You Only Look Once) para detecção e rastreamento de alta velocidade.
+Este projeto consiste no desenvolvimento de um sistema robótico autônomo para interceptação de objetos em pleno voo. O núcleo do sistema utiliza visão computacional com um **modelo YOLO customizado** treinado especificamente para detectar **papeis amassados** e **latinhas**, otimizado para o cenário real de uso.
 
 ## 📋 Índice
 
 - [Características](#características)
+- [Modelo Customizado](#modelo-customizado)
 - [Classes Detectadas](#classes-detectadas)
 - [Requisitos](#requisitos)
 - [Instalação](#instalação)
@@ -16,145 +17,190 @@ Este projeto consiste no desenvolvimento de um sistema robótico autônomo para 
 
 ## ✨ Características
 
-- ⚡ **Detecção rápida** com YOLOv8-nano (otimizado para ARM)
-- 📹 **Câmera 480p** (640x480) para melhor performance
-- 🔌 **Comunicação serial** com Arduino para controle de movimento
-- 🐳 **Docker containerizado** para fácil deploy
-- ⚙️ **Configuração via YAML** - fácil customização
-- 📊 **Logging detalhado** para debug e monitoramento
-- 🎯 **Detecção de múltiplas classes** (garrafas, copos, tigelas)
-- 🤖 **Modelo pré-treinado** - detecta 80 objetos do COCO dataset automaticamente
+- ⚡ **Modelo customizado** treinado com dataset próprio
+- 🎯 **Alta precisão** para papeis e latinhas em movimento
+- 📹 **Câmera 640x640** otimizada para detecção em tempo real
+- 🔌 **Comunicação WebSocket** com sistema de controle
+- 🎨 **Visualização 3D** de trajetórias (modo desenvolvedor)
+- ⚙️ **Configuração centralizada** - fácil customização
+- 📊 **Predição física** de trajetória e ponto de impacto
+- 🤖 **Modelo especializado** - 2 classes treinadas com imagens reais
+
+## 🎯 Modelo Customizado
+
+O sistema utiliza o modelo **below-trash-v2.pt**, treinado especificamente para este projeto com centenas de imagens de papeis amassados e latinhas em diferentes condições de iluminação, ângulos e velocidades.
+
+### 📦 Dataset Próprio
+
+- **Papeis amassados**: Diversos tamanhos, cores e níveis de amassamento
+- **Latinhas**: Alumínio, diferentes marcas e condições
+- **Cenários reais**: Movimento, blur, oclusões parciais
+- **Augmentação**: Rotação, escala, iluminação, ruído
 
 ## 🎯 Classes Detectadas
 
-O YOLOv8 vem **pré-treinado** com o dataset COCO e já detecta **80 classes** automaticamente, sem necessidade de treinar nada!
+O modelo customizado detecta **2 classes** específicas para o projeto:
 
-### ✅ Classes Úteis para Lixeira:
+| ID | Classe | Descrição | Tamanho Real |
+|----|--------|-----------|--------------|
+| 0 | `can` | Latinhas de alumínio | ~17cm altura |
+| 1 | `paper` | Papeis amassados | ~10cm diâmetro |
 
-| Classe | Descrição | Status |
-|--------|-----------|--------|
-| `bottle` | Garrafas PET, vidro | ✅ Recomendado |
-| `cup` | Copos, xícaras | ✅ Recomendado |
-| `bowl` | Tigelas, bowls | ✅ Recomendado |
-| `wine glass` | Taças, cálices | ⚪ Opcional |
-| `fork`, `knife`, `spoon` | Talheres | ⚪ Opcional |
-| `banana`, `apple`, `orange` | Frutas | ⚪ Opcional |
-| `can` | Latas | ❌ **NÃO disponível** |
+### ✅ Vantagens do Modelo Customizado
 
-> **⚠️ IMPORTANTE**: O dataset COCO **NÃO tem a classe "can" (lata)**. Latas cilíndricas são geralmente detectadas como `bottle`. Se precisar distinguir latas de garrafas, considere adicionar um sensor de metal ou treinar um modelo customizado.
-
-### 📝 Testar Classes Disponíveis
-
-Execute este comando para ver todas as 80 classes que o modelo detecta:
-
-```bash
-python3 test_yolo_classes.py
-```
-
-### 🔍 Classes COCO Completas (80 objetos):
-
-```
-person, bicycle, car, motorcycle, airplane, bus, train, truck, boat,
-traffic light, fire hydrant, stop sign, parking meter, bench, bird,
-cat, dog, horse, sheep, cow, elephant, bear, zebra, giraffe, backpack,
-umbrella, handbag, tie, suitcase, frisbee, skis, snowboard, sports ball,
-kite, baseball bat, baseball glove, skateboard, surfboard, tennis racket,
-bottle, wine glass, cup, fork, knife, spoon, bowl, banana, apple,
-sandwich, orange, broccoli, carrot, hot dog, pizza, donut, cake, chair,
-couch, potted plant, bed, dining table, toilet, tv, laptop, mouse,
-remote, keyboard, cell phone, microwave, oven, toaster, sink,
-refrigerator, book, clock, vase, scissors, teddy bear, hair drier,
-toothbrush
-```
+- ✅ **Alta precisão** para os objetos específicos do projeto
+- ✅ **Latinhas detectadas corretamente** (não confunde com garrafas)
+- ✅ **Papeis amassados** detectados mesmo com deformações
+- ✅ **Otimizado para movimento** - treinado com blur e motion
+- ✅ **Leve e rápido** - ideal para dispositivos embarcados
 
 ## 🔧 Requisitos
 
 ### Hardware
-- **Raspberry Pi 3/4/5** (recomendado Pi 4 com 4GB RAM ou superior)
-- **Câmera USB ou CSI** compatível com V4L2
-- **Arduino** (qualquer modelo com comunicação serial)
-- **Cabo USB** para conexão Arduino-Raspberry
-- **Cartão SD** de pelo menos 16GB (recomendado 32GB)
+- **PC ou Raspberry Pi** (recomendado PC com GPU para melhor performance)
+- **Câmera USB** compatível (testado com webcams comuns)
+- **ESP32 ou Arduino** (controle via WebSocket)
+- **Rodas Mecanum** (4 rodas omnidirecionais)
+- **2x TB6612FNG** (controladores de motor)
 
 ### Software
-- **Raspberry Pi OS** (64-bit recomendado)
-- **Docker** e **Docker Compose**
-- **Git**
+- **Python 3.11+** (versão utilizada no desenvolvimento)
+- **PyTorch** com suporte CUDA (opcional, para GPU)
+- **OpenCV** (cv2)
+- **Ultralytics** (YOLOv8/v11)
+- **NumPy, Matplotlib** (visualização 3D)
+- **WebSocket** (comunicação com robô)
 
 ## 📥 Instalação
 
-### 1. Preparar o Raspberry Pi
+### 1. Clonar o Repositório
 
 ```bash
-# Atualizar sistema
-sudo apt update && sudo apt upgrade -y
-
-# Instalar Docker
-curl -fsSL https://get.docker.com -o get-docker.sh
-sudo sh get-docker.sh
-
-# Adicionar usuário ao grupo docker
-sudo usermod -aG docker $USER
-
-# Instalar Docker Compose
-sudo apt install docker-compose -y
-
-# Reiniciar para aplicar mudanças de grupo
-sudo reboot
-```
-
-### 2. Clonar o Repositório
-
-```bash
-cd ~
 git clone https://github.com/gustavo-laureano/lixeira-inteligente.git
 cd lixeira-inteligente
 ```
 
-### 3. Criar Diretórios Necessários
+### 2. Instalar Dependências Python
+_Recomendo utilizar a versão 3.11 do Python  devido a riscos de incompatibilidade._
 
 ```bash
-mkdir -p logs models data
+# Criar ambiente virtual (recomendado)
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# ou
+venv\Scripts\activate  # Windows
+
+# Instalar dependências
+pip install -r requirements.txt
 ```
 
-### 4. Verificar Dispositivos
+### 3. Verificar Câmera
 
 ```bash
-# Verificar câmera
-ls -l /dev/video*
+# Listar câmeras disponíveis
+python detection/tools/camera_selector.py
 
-# Verificar porta serial do Arduino
-ls -l /dev/ttyUSB* /dev/ttyACM*
-
-# Testar câmera (instale v4l-utils se necessário)
-sudo apt install v4l-utils
-v4l2-ctl --list-devices
+# Testar câmera
+python tests/test_camera.py #altere 'device=0' para o id da camera em uso
 ```
+
+### 4. Configurar ESP32/Arduino
+
+1. Abra o projeto no PlatformIO
+2. Configure os pinos em `include/Config.h`
+3. Configure o IP do servidor no `APIreceiver.h` 
+```
+// Ajuste estes valores conforme seu ambiente
+const char* SERVER_HOST = "10.212.20.30";  // IP do PC/Servidor com a API
+const int   SERVER_PORT = 8000;
+const char* SERVER_PATH = "/ws/robot";
+#define WIFI_PASSWORD       "wifitop12347"
+```
+Configure a rede no `Config.h` 
+```
+// Configurações WiFi para APIreceiver
+#define WIFI_SSID           "POCO M3 Pro 5G"
+#define WIFI_PASSWORD       "wifitop12347"
+```
+
+4. Compile e faça upload para o ESP32
+5. Anote o IP do WebSocket (será exibido no Serial)
 
 ## ⚙️ Configuração
 
-### 1. Editar config.yaml
+### 1. Editar detection/modules/config.py
 
-Abra o arquivo `config.yaml` e ajuste conforme seu setup:
+Ajuste as configurações conforme seu setup:
 
-```yaml
-camera:
-  resolution: [640, 480]  # Resolução 480p
-  fps: 30                  # FPS desejado
-  device: 0                # Device da câmera
+```python
+# Câmera
+CAMERA_ID = 0              # ID da câmera
+CAMERA_WIDTH = 640         # Resolução
+CAMERA_HEIGHT = 640
+CAMERA_FPS = 60
 
-serial:
-  port: "/dev/ttyUSB0"    # Porta do Arduino
-  baudrate: 9600           # Baudrate (igual ao Arduino)
+# Modelo YOLO customizado
+MODEL_PATH = "detection/models/below-trash-v1.pt"
+CONFIDENCE_THRESHOLD = 0.15
+TARGET_CLASSES = ['can', 'paper']  # Classes do modelo customizado
 
-detection:
-  classes:                 # Classes a detectar
-    - "bottle"
-    - "cup"
-    - "can"
-  min_area: 1000          # Área mínima em pixels
+# Dimensões reais dos objetos (em metros)
+OBJECT_DIMENSIONS = {
+    0: 0.17,  # can - 17cm
+    1: 0.10   # paper - 10cm
+}
+
+# WebSocket do robô
+API_URL = "ws://192.168.x.x:8000/ws/controller"  # IP do ESP32
+
+# Modo desenvolvedor (visualização 3D)
+DEFAULT_DEV_MODE = True
 ```
-# CarrinhoMovimentacao — Módulo de Movimentação (Mecanum)
+
+## 🚀 Uso
+
+### Executar Sistema Principal
+
+```bash
+# Ativar ambiente virtual
+source venv/bin/activate  # Linux/Mac
+venv\Scripts\activate     # Windows
+
+# Executar detecção
+python detection/main.py
+```
+
+### Controles do Teclado
+
+| Tecla | Função |
+|-------|--------|
+| `ESC` | Sair do programa |
+| `SPACE` | Pausar/Retomar detecção |
+| `D` | Ativar/Desativar modo desenvolvedor (visualização 3D) |
+
+### Modo Desenvolvedor
+
+Ao pressionar `D`, uma janela 3D é aberta mostrando:
+- 🔵 **Posição atual** do objeto detectado
+- 🟢 **Ponto de impacto** previsto no chão
+- 📈 **Trajetória completa** com física aplicada
+- 📏 **Eixos 3D** com escala em metros
+
+## 📊 Sistema de Predição
+
+O sistema calcula:
+
+1. **Posição 3D** do objeto usando geometria da câmera
+2. **Velocidade** através de histórico de posições (regressão linear)
+3. **Trajetória** aplicando física (gravidade 9.81 m/s²)
+4. **Ponto de aterrissagem** resolvendo equação do movimento
+
+### Fórmulas Utilizadas
+
+- **Distância**: $Z = \frac{f \times W_{real}}{W_{pixel}}$
+- **Trajetória**: $y(t) = y_0 + v_y \times t - \frac{1}{2} \times g \times t^2$
+- **Impacto**: $t_{land} = \frac{v_y + \sqrt{v_y^2 + 2 \times g \times y_0}}{g}$
+# Carrinho Movimentacao — Módulo de Movimentação (Mecanum)
 
 Sistema de controle (módulo) para movimentação de um carrinho com 4 rodas mecanum. Este repositório contém a parte responsável pelo controle de movimento (motores e entrada de comandos).
 
@@ -373,15 +419,3 @@ Edite `Config.h` para ajustar:
 3. **Bluetooth não conecta**: Verifique o nome do dispositivo
 4. **Velocidade baixa**: Ajuste `DEFAULT_SPEED` em Config.h
 
-## 📈 Roadmap
-
-- [ ] Controle via WiFi
-- [ ] Interface web
-- [ ] Sensores de obstáculos
-- [ ] Controle autônomo
-- [ ] Telemetria avançada
-
----
-
-**Desenvolvido em 2025** 🚀
->>>>>>> 7b14a6e (Prepare project for GitHub: add main, cleanup backups, .gitignore, CI workflow)
