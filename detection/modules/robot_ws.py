@@ -66,25 +66,18 @@ class RobotWebSocket:
             sleep(5)
             self.connect()
     
-    def send_command(self, command_dict):
+    def send_raw(self, text: str):
         """
-        Envia comando ao robô
+        Envia texto puro ao robô (sem conversão JSON)
         
         Args:
-            command_dict: Dict com comandos
-                {
-                    'forward': int (0-255),
-                    'turn': int (-255 a 255),
-                    'target': [x, y, z]
-                }
+            text: String no formato "V:vy,vx"
         """
         if not self.connected or self.ws is None:
             return False
         
         try:
-            # Converter para JSON
-            message = json.dumps(command_dict)
-            self.ws.send(message)
+            self.ws.send(text)
             return True
             
         except Exception as e:
