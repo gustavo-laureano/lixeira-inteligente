@@ -164,24 +164,37 @@ class DetectionApp:
         return frame
     
     def _send_robot_command(self, landing_point):
-        """Envia comando de movimento ao robô"""
-        x_target, y_target = landing_point  # landing_point é (x, y)
+        """Envia comando de movimento ao robô no formato correto V:vy,vx"""
+        x_target, y_target = landing_point
         
-        # Usar método send_command do RobotWebSocket (versão clean)
         if self.robot and self.robot.connected:
-            # Calcular velocidades (PID simplificado)
-            angle_error = np.arctan2(y_target, x_target)
-            forward_error = np.sqrt(x_target**2 + y_target**2)
+            # Normalizar coordenadas para o espaço do robô
+            # Assumindo que o robô está em (0,0) e olha para frente (+Y)
             
-            turn_speed = int(np.clip(angle_error * config.KP_TURN, -config.MAX_SPEED, config.MAX_SPEED))
-            forward_speed = int(np.clip(forward_error * config.KP_FORWARD, 0, config.MAX_SPEED))
+            # Calcular vetor de velocidade normalizado
+            distance = np.sqrt(x_target**2 + y_target**2)
             
-            self.robot.send_command({
-                'forward': forward_speed,
-                'turn': turn_speed,
-                'target': [float(x_target), float(y_target)]
-            })
-    
+            if distance < 0.1:  # Muito perto, parar
+                vx = 0.0
+                vy = 0.0
+            else:
+                # Normalizar e escalar para velocidade máxima (0-1)
+                max_distance = config.MAX_ROBOT_DISTANCE  # metros (ajuste conforme seu campo)
+                scale = min(distance / max_distance, 1.0)
+                
+                # vx: movimento lateral (esquerda/direita)
+                # vy: movimento frontal (frente/trás)
+                vx = (x_target / distance) * scale
+                vy = (y_target / distance) * scale
+            
+            # "V:vy,vx"
+            command = f"V:{vy:.3f},{vx:.3f}"
+            
+            self.robot.send_raw(command)
+            
+            if config.VERBOSE_LOGGING:
+                print(f"🤖 Comando enviado: {command} (alvo: x={x_target:.2f}, y={y_target:.2f})")
+        
     def _draw_detection(self, frame, bbox, class_id, confidence, pos_3d):
         """Desenha visualização da detecção"""
         x1, y1, x2, y2 = map(int, bbox)

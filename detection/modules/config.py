@@ -34,9 +34,9 @@ ROBOT_HEIGHT = 0.0  # Altura onde o robô pega (metros)
 PREDICTION_STEP = 0.05  # Resolução da trajetória (segundos)
 
 # ===== CONTROLE DO ROBÔ =====
-MAX_SPEED = 255  # Velocidade máxima (0-255)
-KP_TURN = 150.0  # Ganho proporcional para rotação
-KP_FORWARD = 200.0  # Ganho proporcional para movimento
+MAX_ROBOT_DISTANCE = 2.0  # Distância máxima do campo (metros)
+MIN_DISTANCE_THRESHOLD = 0.1  # Distância mínima para considerar movimento (metros)
+
 
 # ===== INTERFACE =====
 # Controles de teclado
