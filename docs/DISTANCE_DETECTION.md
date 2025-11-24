@@ -1,310 +1,442 @@
-# 📏 Sistema de Detecção de Distância
+# 📏 Sistema de Detecção 3D e Predição de Trajetória
 
-## 🎯 Como Funciona
+## 🎯 Visão Geral
 
-O sistema agora detecta a **distância do objeto** baseado no **tamanho aparente** (área em pixels) na imagem.
+Este sistema **não usa área de pixels** para estimar distância. Ao invés disso, utiliza **geometria de câmera** e **física** para calcular:
 
-### Princípio Básico
+1. **Posição 3D** do objeto no espaço (x, y, z)
+2. **Velocidade 3D** através de tracking temporal
+3. **Trajetória futura** aplicando física (gravidade)
+4. **Ponto de aterrissagem** onde o objeto vai cair
+
+## 📐 Como Funciona
+
+### 1. Câmera Pinhole Model
+
+A câmera funciona como uma **câmera pinhole** (modelo de projeção perspectiva):
 
 ```
-Objeto LONGE     →  Aparece PEQUENO  →  Área em pixels BAIXA
-Objeto PERTO     →  Aparece GRANDE   →  Área em pixels ALTA
-Objeto MUITO PERTO → Aparece ENORME  →  Área em pixels MUITO ALTA
+Objeto Real (3D)  →  Projeção na Imagem (2D)
+      ↓
+   Câmera
+      ↓
+   Cálculo reverso (2D → 3D)
 ```
 
-## 📊 Zonas de Distância
+### 2. Fórmula de Distância
 
-O sistema divide em **4 zonas** baseadas na área do objeto:
+$$Z = \frac{f \times W_{real}}{W_{pixel}}$$
 
-| Zona | Área (pixels²) | Descrição | Ação do Arduino |
-|------|---------------|-----------|----------------|
-| 🔴 **VERY_CLOSE** | > 50.000 | Muito perto! | ⬅️ **RECUA** |
-| 🟡 **CLOSE** | 20.000 - 50.000 | Alcançou objeto | ⏸️ **PARA** |
-| 🟢 **MEDIUM** | 10.000 - 20.000 | Distância média | 🐢 Avança devagar |
-| 🔵 **FAR** | < 10.000 | Longe | 🚀 Avança rápido |
+**Onde:**
+- **Z** = Distância do objeto à câmera (metros)
+- **f** = Distância focal da câmera (pixels)
+- **W_real** = Largura real do objeto (metros)
+- **W_pixel** = Largura do objeto na imagem (pixels)
 
-## 🔧 Configuração
-
-### config.yaml
-
-```yaml
-detection:
-  distance_thresholds:
-    very_close: 50000   # > 50k = MUITO PERTO (recuar)
-    close: 20000        # > 20k = PERTO (parar)
-    medium: 10000       # > 10k = MÉDIO (devagar)
-    # < 10k = LONGE (rápido)
-```
-
-**Ajuste estes valores conforme:**
-- Tamanho dos objetos que você detecta
-- Resolução da câmera (640x480)
-- Distância desejada da lixeira ao objeto
-- Campo de visão da câmera
-
-## 📐 Cálculo da Área
+### 3. Conversão 2D → 3D
 
 ```python
-# detect.py
-x1, y1, x2, y2 = box.xyxy[0]  # Coordenadas do retângulo
-area = (x2 - x1) * (y2 - y1)  # Área em pixels²
+# Dado um objeto detectado no frame:
+x_pixel, y_pixel, width_pixel, height_pixel = bbox
 
-# Exemplo: Garrafa de 100x300 pixels = 30.000 pixels²
-```
+# 1. Calcular distância (Z)
+Z = (focal_length * real_width) / width_pixel
 
-### Exemplos Visuais
+# 2. Calcular X (esquerda/direita)
+X = (x_pixel - center_x) * Z / focal_length
 
-#### Garrafa Longe (FAR)
-```
-┌──────────────────────┐
-│                      │
-│                      │
-│       [🍾]          │  ← Pequena (5.000 pixels²)
-│                      │
-│                      │
-└──────────────────────┘
-Comando: BOTTLE:CENTER:FAR
-Ação: Avança RÁPIDO
+# 3. Calcular Y (profundidade)
+Y = Z  # Distância da câmera
+
+# Resultado: Posição 3D = (X, Y, Z)
 ```
 
-#### Garrafa Média Distância (MEDIUM)
+**Exemplo:**
 ```
-┌──────────────────────┐
-│                      │
-│        ┌──┐         │
-│        │🍾│         │  ← Média (15.000 pixels²)
-│        └──┘         │
-│                      │
-└──────────────────────┘
-Comando: BOTTLE:CENTER:MEDIUM
-Ação: Avança DEVAGAR
+Latinha detectada:
+- Largura na imagem: 50 pixels
+- Largura real: 0.06m (6cm)
+- Focal length: 500 pixels
+
+Z = (500 * 0.06) / 50 = 0.6 metros
+
+A latinha está a 60cm da câmera!
 ```
 
-#### Garrafa Perto (CLOSE)
-```
-┌──────────────────────┐
-│      ┌────┐         │
-│      │    │         │
-│      │ 🍾 │         │  ← Grande (30.000 pixels²)
-│      │    │         │
-│      └────┘         │
-└──────────────────────┘
-Comando: BOTTLE:CENTER:CLOSE
-Ação: PARA (alcançou)
-```
+## 📊 Sistema de Coordenadas
 
-#### Garrafa Muito Perto (VERY_CLOSE)
-```
-┌──────────────────────┐
-│  ┌────────────────┐ │
-│  │                │ │
-│  │      🍾       │ │  ← Enorme (60.000 pixels²)
-│  │                │ │
-│  └────────────────┘ │
-└──────────────────────┘
-Comando: BOTTLE:CENTER:VERY_CLOSE
-Ação: RECUA ⬅️
-```
-
-## 🤖 Comportamento do Arduino
-
-### Fluxograma de Decisão
+### Referencial
 
 ```
-Comando recebido: BOTTLE:LEFT:MEDIUM
+        Z (Altura)
+        ↑
+        |
+        |
+        o----→ X (Esquerda/Direita)
+       /
+      ↙
+     Y (Profundidade/Distância)
+```
+
+**Convenção:**
+- **X = 0**: Centro da câmera
+- **X < 0**: Objeto à esquerda
+- **X > 0**: Objeto à direita
+- **Y**: Distância frontal da câmera
+- **Z = 0**: Chão
+- **Z > 0**: Altura acima do chão
+
+### Exemplo Visual
+
+```
+Câmera no topo olhando para baixo:
+
+         Y (distância)
+         ↑
+         |
+    -X ← o → +X
+         |
          ↓
-    Parse comando
-         ↓
-    distance = "MEDIUM"
-    position = "LEFT"
-         ↓
-    if (distance == "VERY_CLOSE")
-         ├─ Não
-         ↓
-    if (distance == "CLOSE")
-         ├─ Não
-         ↓
-    if (distance == "MEDIUM")  ← ✅ SIM!
-         ↓
-    if (position == "LEFT")    ← ✅ SIM!
-         ↓
-    turnLeft()
-    moveForwardSlow()
-         ↓
-    stopMotors()
-    Serial.println("OK")
 ```
 
-### Código Arduino
+Um objeto em `(0.2, 1.5, 1.0)` está:
+- **20cm à direita** da câmera
+- **1.5m de distância** (profundidade)
+- **1m de altura** do chão
 
-```cpp
-void processCommand(String cmd) {
-  // Parse
-  String distance = parseDistance(cmd);
-  String position = parsePosition(cmd);
-  
-  // Decisão baseada na distância
-  if (distance == "VERY_CLOSE") {
-    // ⬅️ RECUAR - Passou do ponto!
-    Serial.println("RECUANDO!");
-    moveBackward(500);  // Recua por 500ms
-    
-  } else if (distance == "CLOSE") {
-    // ⏸️ PARAR - Alcançou o objeto!
-    Serial.println("PARADO - Objeto alcançado");
-    stopMotors();
-    // Aqui você pode acionar garra, tampa, etc
-    
-  } else if (distance == "MEDIUM") {
-    // 🐢 APROXIMAR DEVAGAR
-    Serial.println("Aproximando devagar...");
-    
-    // Ajusta direção primeiro
-    if (position == "LEFT") {
-      turnLeft();
-    } else if (position == "RIGHT") {
-      turnRight();
-    }
-    
-    // Avança devagar
-    moveForward(300, 100);  // 300ms, velocidade 100
-    
-  } else if (distance == "FAR") {
-    // 🚀 AVANÇAR RÁPIDO
-    Serial.println("Avançando rápido!");
-    
-    // Ajusta direção
-    if (position == "LEFT") {
-      turnLeft();
-    } else if (position == "RIGHT") {
-      turnRight();
-    }
-    
-    // Avança rápido
-    moveForward(800, 200);  // 800ms, velocidade 200
-  }
-  
-  stopMotors();
-  Serial.println("OK");
+## 🎯 Cálculo de Velocidade
+
+### Tracking Temporal
+
+O sistema mantém **histórico de posições** para calcular velocidade:
+
+```python
+# Posições detectadas ao longo do tempo
+t0 = 0.0s: posição = (0.0, 1.5, 2.0)
+t1 = 0.1s: posição = (0.1, 1.6, 1.9)
+t2 = 0.2s: posição = (0.2, 1.7, 1.7)
+t3 = 0.3s: posição = (0.3, 1.8, 1.4)
+
+# Velocidade = variação da posição / tempo
+vx = (0.3 - 0.0) / 0.3 = 1.0 m/s (movendo para direita)
+vy = (1.8 - 1.5) / 0.3 = 1.0 m/s (se afastando)
+vz = (1.4 - 2.0) / 0.3 = -2.0 m/s (caindo)
+```
+
+### Regressão Linear
+
+Para maior precisão, usa **regressão linear** nos últimos N frames:
+
+```python
+# Ajusta uma linha aos pontos históricos
+slope_x, intercept_x = linear_regression(times, positions_x)
+slope_y, intercept_y = linear_regression(times, positions_y)
+slope_z, intercept_z = linear_regression(times, positions_z)
+
+# Slopes são as velocidades
+vx = slope_x  # m/s
+vy = slope_y  # m/s
+vz = slope_z  # m/s
+```
+
+**Vantagem:** Suaviza ruído de detecção!
+
+## 🌍 Física da Trajetória
+
+### Equações do Movimento
+
+Uma vez conhecendo posição `(x, y, z)` e velocidade `(vx, vy, vz)`, calculamos trajetória:
+
+**Horizontal (sem gravidade):**
+$$x(t) = x_0 + v_x \times t$$
+$$y(t) = y_0 + v_y \times t$$
+
+**Vertical (com gravidade):**
+$$z(t) = z_0 + v_z \times t - \frac{1}{2} \times g \times t^2$$
+
+**Onde:**
+- $g = 9.81 \, m/s^2$ (gravidade da Terra)
+- $t$ = tempo futuro
+
+### Ponto de Impacto
+
+Para saber **quando** o objeto atinge altura do robô:
+
+$$0.5 = z_0 + v_z \times t - \frac{1}{2} \times g \times t^2$$
+
+Resolvendo com **Bhaskara**:
+
+$$t = \frac{-v_z + \sqrt{v_z^2 + 2 \times g \times (z_0 - 0.5)}}{g}$$
+
+Então calculamos **onde** estará:
+
+$$x_{land} = x_0 + v_x \times t$$
+$$y_{land} = y_0 + v_y \times t$$
+$$z_{land} = 0.5 \, m$$ (altura do robô)
+
+**Resultado:** `(x_land, y_land, 0.5)` = ponto de aterrissagem! 🎯
+
+## 💻 Implementação
+
+### Estrutura do Código
+
+```
+detection/modules/
+├── spatial.py        # Conversão 2D→3D, cálculo de distância
+├── physics.py        # Velocidade, trajetória, predição
+├── vision.py         # Visualização 3D (Matplotlib)
+└── run_prediction.py # Orquestração do sistema
+```
+
+### Fluxo de Processamento
+
+```python
+# 1. Detecção YOLO (2D)
+results = model(frame)
+bbox = results[0].boxes[0].xyxy  # (x1, y1, x2, y2)
+
+# 2. Conversão para 3D (spatial.py)
+position_3d = pixel_to_3d(bbox, class_id, focal_length)
+# Retorna: (x, y, z) em metros
+
+# 3. Tracking e Velocidade (physics.py)
+velocity_3d = calculate_velocity(position_history)
+# Retorna: (vx, vy, vz) em m/s
+
+# 4. Predição de Trajetória (physics.py)
+landing_point = predict_landing(position_3d, velocity_3d, robot_height)
+# Retorna: (x_land, y_land, z_land, t_land)
+
+# 5. Comando ao Robô
+robot_command = landing_point_to_vector(landing_point)
+# Retorna: (vx_normalized, vy_normalized)
+```
+
+## ⚙️ Configuração
+
+### Parâmetros Importantes
+
+```python
+# detection/modules/config.py
+
+# Dimensões reais dos objetos (CALIBRAR!)
+OBJECT_DIMENSIONS = {
+    0: 0.17,  # can - 17cm altura
+    1: 0.10   # paper - 10cm diâmetro amassado
 }
+
+# Focal length (pixels) - depende da câmera
+FOCAL_LENGTH = 500  # Típico para webcam 640x640
+
+# Altura do robô (metros)
+ROBOT_HEIGHT = 0.5  # 50cm
+
+# Gravidade
+GRAVITY = 9.81  # Terra (m/s²)
+
+# Tracking
+MIN_TRACKING_FRAMES = 5  # Mínimo de frames para calcular velocidade
+MAX_HISTORY = 20         # Máximo de posições no histórico
 ```
 
-## 🎯 Sequência Completa de Aproximação
+### Calibração da Focal Length
 
-### Cenário: Garrafa detectada à esquerda, longe
+A focal length depende da **câmera e resolução**:
 
-```
-1️⃣ Detecção inicial
-   └─> BOTTLE:LEFT:FAR (área: 5.000 px²)
-   └─> Arduino: Vira esquerda + Avança RÁPIDO
+```python
+# Método 1: Medir distância conhecida
+# 1. Coloque objeto a 1 metro da câmera
+# 2. Detecte e veja largura em pixels
+# 3. Calcule: f = (width_pixels * distance) / real_width
 
-2️⃣ Após ~1 segundo (Arduino moveu)
-   └─> BOTTLE:CENTER:FAR (área: 8.000 px²)
-   └─> Arduino: Avança RÁPIDO (já está centralizado)
+# Exemplo:
+# Latinha (6cm) a 1m aparece com 30 pixels
+f = (30 * 1.0) / 0.06 = 500 pixels
 
-3️⃣ Após mais ~1 segundo
-   └─> BOTTLE:CENTER:MEDIUM (área: 15.000 px²)
-   └─> Arduino: Avança DEVAGAR (está ficando perto)
-
-4️⃣ Após mais ~0.5 segundo
-   └─> BOTTLE:CENTER:CLOSE (área: 30.000 px²)
-   └─> Arduino: PARA! ✅ (alcançou o objeto)
-
-5️⃣ Se continuar avançando...
-   └─> BOTTLE:CENTER:VERY_CLOSE (área: 60.000 px²)
-   └─> Arduino: RECUA! ⬅️ (passou do ponto)
+# Método 2: Usar especificações da câmera
+# f = (sensor_width_pixels * focal_length_mm) / sensor_width_mm
 ```
 
-## ⚙️ Calibração
+### Calibração das Dimensões
 
-### Como Ajustar os Thresholds
+**Importante:** Meça os objetos reais!
 
-1. **Execute o sistema** apontando para um objeto
-2. **Observe os logs** para ver a área detectada:
-   ```
-   Detectado: bottle (conf: 0.85, área: 25000, pos: CENTER, dist: CLOSE)
-   ```
+```python
+# Latinha típica 350ml
+OBJECT_DIMENSIONS[0] = 0.12  # 12cm altura
 
-3. **Ajuste config.yaml** baseado nos valores reais:
-
-```yaml
-# Se objetos são detectados como CLOSE muito cedo:
-distance_thresholds:
-  very_close: 60000  # Aumenta threshold
-  close: 30000       # Aumenta threshold
-  medium: 15000      # Aumenta threshold
-
-# Se objetos são detectados como FAR muito tempo:
-distance_thresholds:
-  very_close: 40000  # Diminui threshold
-  close: 15000       # Diminui threshold
-  medium: 7000       # Diminui threshold
+# Papel amassado (medir diâmetro típico)
+OBJECT_DIMENSIONS[1] = 0.08  # 8cm
 ```
+
+**Dica:** Objetos maiores = detecção de distância mais precisa!
+
+## 📊 Precisão do Sistema
+
+### Fatores que Afetam Precisão
+
+1. **Focal Length calibrada** ⭐
+   - Erro de 10% na focal = Erro de 10% na distância
+   
+2. **Dimensões reais corretas** ⭐
+   - Erro de 5cm = Erro de ~20cm na distância (a 1m)
+
+3. **Resolução da câmera**
+   - 640x640: Precisão média
+   - 1280x1280: Alta precisão
+   - 416x416: Baixa precisão
+
+4. **Tamanho do objeto na imagem**
+   - >50 pixels: Boa precisão
+   - 20-50 pixels: Média precisão
+   - <20 pixels: Baixa precisão
+
+5. **Estabilidade da detecção**
+   - Confidence >0.5: Estável
+   - Confidence <0.3: Instável (velocidade ruidosa)
+
+### Erro Típico
+
+Com boa calibração:
+
+| Distância | Erro Típico |
+|-----------|-------------|
+| 0.5m | ±5cm |
+| 1.0m | ±10cm |
+| 2.0m | ±20cm |
+| 3.0m | ±40cm |
+
+## 🎨 Visualização 3D
+
+### Ativar Modo Desenvolvedor
+
+Pressione **D** durante execução para ver:
+
+```
+┌─────────────────────────────────────┐
+│  Visualização 3D                    │
+│                                     │
+│    Z ↑                              │
+│      |     🔵 Objeto atual          │
+│      |    /                         │
+│      |   /  Trajetória prevista    │
+│      |  /                           │
+│      | /                            │
+│      |/                             │
+│      o────→ Y (Profundidade)        │
+│     /                               │
+│    ↙ X (Esq/Dir)                   │
+│                                     │
+│  🟢 Ponto de impacto previsto      │
+└─────────────────────────────────────┘
+```
+
+### Elementos da Visualização
+
+- **🔵 Ponto azul**: Posição atual do objeto
+- **📈 Linha azul**: Trajetória prevista (parábola)
+- **🟢 Ponto verde**: Ponto de aterrissagem previsto
+- **Eixos**: X (esquerda/direita), Y (profundidade), Z (altura)
+- **Grid**: Escala em metros
+
+## 🤖 Comando ao Robô
+
+### Conversão: Landing Point → Vetor de Movimento
+
+```python
+# Ponto de aterrissagem previsto
+landing_point = (x_land, y_land, z_land)
+
+# Posição atual do robô (assumindo no centro)
+robot_position = (0, 0, robot_height)
+
+# Vetor de movimento = landing - robot
+vx = landing_point[0] - robot_position[0]
+vy = landing_point[1] - robot_position[1]
+
+# Normalizar para [-1, 1]
+max_distance = 2.0  # Alcance máximo do robô (metros)
+vx_normalized = clamp(vx / max_distance, -1, 1)
+vy_normalized = clamp(vy / max_distance, -1, 1)
+
+# Enviar ao robô
+command = f"V:{vy_normalized:.3f},{vx_normalized:.3f}"
+# Exemplo: "V:0.500,0.300"
+```
+
+### Protocolo WebSocket
+
+```
+Formato: V:vy,vx
+
+Exemplos:
+"V:0.500,0.000"  → Frente (50%)
+"V:-0.500,0.000" → Trás (50%)
+"V:0.000,0.500"  → Direita (50%)
+"V:0.000,-0.500" → Esquerda (50%)
+"V:0.707,0.707"  → Diagonal (frente-direita)
+"V:0.000,0.000"  → Parar
+```
+
+Ver [CarrinhoMovimentacao.md](CarrinhoMovimentacao.md) para detalhes do controle Mecanum.
+
+## 🧪 Testar o Sistema
 
 ### Teste de Calibração
 
 ```bash
-# Coloque um objeto em diferentes distâncias e veja os logs
-docker-compose logs -f | grep "área:"
+cd detection
+python main.py
 
-# Exemplos de output:
-# 3 metros: área: 3000   → FAR ✅
-# 2 metros: área: 8000   → FAR ✅
-# 1 metro:  área: 15000  → MEDIUM ✅
-# 50cm:     área: 35000  → CLOSE ✅
-# 20cm:     área: 65000  → VERY_CLOSE ✅
+# Pressione D para ativar visualização 3D
+# Coloque objeto a distâncias conhecidas e compare
 ```
 
-## 🔍 Debug
-
-### Ver Áreas Detectadas em Tempo Real
+### Validar Distância
 
 ```python
-# Adicione no detect.py se quiser debug visual
-logger.info(f"ÁREA: {area:.0f} → DISTÂNCIA: {distance}")
+# Adicione prints em spatial.py
+print(f"Distância calculada: {distance:.2f}m")
+print(f"Posição 3D: x={x:.2f}, y={y:.2f}, z={z:.2f}")
+
+# Compare com medição real usando trena!
 ```
 
-### Testar Manualmente
-
-```bash
-# Enviar comandos de teste direto pro Arduino
-python3 test_serial.py /dev/ttyUSB0 9600
-
-# Digite:
-BOTTLE:CENTER:FAR
-BOTTLE:CENTER:MEDIUM
-BOTTLE:CENTER:CLOSE
-BOTTLE:CENTER:VERY_CLOSE
-```
-
-## 💡 Dicas
-
-1. **Iluminação importa**: Baixa luz = detecção ruim = área imprecisa
-2. **Fundo limpo**: Fundo confuso pode aumentar área detectada
-3. **Objetos similares**: Garrafas grandes vs pequenas têm áreas diferentes na mesma distância
-4. **Ajuste por tipo**: Você pode ter thresholds diferentes para cada classe:
+### Validar Velocidade
 
 ```python
-# Ideia: Thresholds personalizados (não implementado)
-thresholds = {
-    'bottle': {'very_close': 60000, 'close': 30000, 'medium': 15000},
-    'cup': {'very_close': 40000, 'close': 20000, 'medium': 10000},
-}
+# Adicione prints em physics.py
+print(f"Velocidade: vx={vx:.2f}, vy={vy:.2f}, vz={vz:.2f} m/s")
+
+# Velocidade vertical deve ser negativa se caindo
+# vz ≈ -2 m/s é típico para objetos em queda livre
 ```
 
-## 🎓 Conceitos
+## 💡 Dicas de Uso
 
-### Por que Área e não Distância Real?
+1. **Calibre primeiro** - Focal length e dimensões são críticas
+2. **Boa iluminação** - Detecção estável = velocidade precisa
+3. **Objetos grandes** - Mais fácil de detectar distância correta
+4. **Múltiplos frames** - MIN_TRACKING_FRAMES = 5+ para precisão
+5. **Visualização 3D** - Use tecla D para debug visual
+6. **Teste gradual** - Objetos parados → lentos → rápidos
 
-**YOLO não mede distância diretamente!** Ele só detecta objetos em imagens 2D.
+## 📚 Referências
 
-Para distância REAL você precisaria:
-- **Sensor ultrassônico** (HC-SR04)
-- **Câmera estéreo** (duas câmeras)
-- **Sensor de profundidade** (Intel RealSense, Kinect)
-
-Mas para a lixeira, **área em pixels é suficiente**! É rápido, simples e funciona bem.
+- [PHYSICS.md](PHYSICS.md) - Detalhes da física aplicada
+- [Pinhole Camera Model](https://en.wikipedia.org/wiki/Pinhole_camera_model)
+- [Projectile Motion](https://en.wikipedia.org/wiki/Projectile_motion)
 
 ---
 
-**Resumo**: Sistema agora detecta 4 níveis de distância baseado na área do objeto. Arduino pode RECUAR quando muito perto, PARAR quando alcançou, ou AVANÇAR (devagar/rápido) quando longe. ✅
+## 🎯 Resumo
+
+Este sistema **NÃO usa área de pixels** simplista. Utiliza:
+
+1. ✅ **Geometria de câmera** (pinhole model)
+2. ✅ **Dimensões reais** dos objetos
+3. ✅ **Física completa** (gravidade, trajetória)
+4. ✅ **Tracking temporal** (velocidade via regressão)
+5. ✅ **Predição 3D** (onde vai cair)
+
+É um sistema **robusto e preciso** quando bem calibrado! 🚀

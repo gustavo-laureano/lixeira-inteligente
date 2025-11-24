@@ -1,6 +1,6 @@
 # 🔧 Guia de Troubleshooting
 
-Soluções para problemas comuns ao executar o sistema YOLO no Raspberry Pi.
+Soluções para problemas comuns ao executar o sistema de Lixeira Inteligente.
 
 ## 📹 Problemas com Câmera
 
@@ -9,539 +9,613 @@ Soluções para problemas comuns ao executar o sistema YOLO no Raspberry Pi.
 **Sintomas:**
 ```
 Erro: Não foi possível abrir a câmera
+Could not open camera 0
 ```
 
 **Soluções:**
 
-1. **Verificar se câmera está conectada:**
-   ```bash
-   ls -l /dev/video*
-   v4l2-ctl --list-devices
-   ```
+**Windows:**
+```powershell
+# 1. Verificar dispositivos disponíveis
+python detection/tools/camera_selector.py
 
-2. **Para câmera USB:**
-   ```bash
-   # Reconectar USB
-   sudo rmmod uvcvideo
-   sudo modprobe uvcvideo
-   ```
+# 2. Testar diferentes IDs
+# Edite config.py: CAMERA_ID = 1  # ou 2, 3...
 
-3. **Para câmera CSI (Raspberry Pi Camera):**
-   ```bash
-   # Habilitar em raspi-config
-   sudo raspi-config
-   # Interface Options -> Camera -> Enable
-   
-   # Verificar
-   vcgencmd get_camera
-   # Deve retornar: supported=1 detected=1
-   ```
+# 3. Verificar permissões
+# Windows Settings -> Privacy -> Camera -> Allow apps
 
-4. **Permissões:**
-   ```bash
-   sudo chmod 666 /dev/video0
-   sudo usermod -aG video $USER
-   ```
+# 4. Desativar aplicativos que usam câmera
+# Feche Teams, Zoom, Discord, etc.
+```
 
-5. **Testar câmera:**
-   ```bash
-   # USB
-   fswebcam test.jpg
-   
-   # CSI
-   raspistill -o test.jpg
-   ```
+**Linux:**
+```bash
+# Verificar dispositivos
+ls -l /dev/video*
+v4l2-ctl --list-devices
+
+# Permissões
+sudo usermod -aG video $USER
+sudo chmod 666 /dev/video0
+
+# Testar câmera
+ffplay /dev/video0
+```
+
+**Mac:**
+```bash
+# Verificar permissões
+# System Preferences -> Security & Privacy -> Camera
+
+# Testar câmera
+python -c "import cv2; cap = cv2.VideoCapture(0); print('OK' if cap.isOpened() else 'ERRO')"
+```
 
 ### ❌ Imagem preta ou congelada
 
 **Soluções:**
 
-1. **Aumentar timeout:**
-   ```python
-   camera = cv2.VideoCapture(0)
-   camera.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-   time.sleep(2)  # Aguarda câmera inicializar
-   ```
+```python
+# 1. Aumentar timeout em camera_manager.py
+time.sleep(2)  # Aguarda câmera inicializar
 
-2. **Verificar iluminação**
+# 2. Verificar iluminação (precisa de luz!)
 
-3. **Testar outra resolução:**
-   ```yaml
-   camera:
-     resolution: [320, 240]
-   ```
+# 3. Testar resolução diferente em config.py
+CAMERA_WIDTH = 640
+CAMERA_HEIGHT = 480  # Tente diferentes
+
+# 4. Resetar câmera
+# Desconecte e reconecte USB
+```
 
 ### ❌ FPS muito baixo
 
 Ver [OPTIMIZATION.md](OPTIMIZATION.md) para detalhes completos.
 
 **Verificações rápidas:**
+
+```python
+# 1. Verificar se GPU está sendo usada
+import torch
+print(f"CUDA: {torch.cuda.is_available()}")
+
+# 2. Reduzir resolução em config.py
+CAMERA_WIDTH = 416
+CAMERA_HEIGHT = 416
+
+# 3. Desativar visualização 3D
+# Pressione D durante execução
+# Ou: DEFAULT_DEV_MODE = False
+
+# 4. Fechar programas pesados (Chrome, Discord, etc)
+```
+
+## 🌐 Problemas com WebSocket
+
+### ❌ Servidor não inicia
+
+**Sintomas:**
+```
+Error: Address already in use
+```
+
+**Soluções:**
+
+**Windows:**
+```powershell
+# 1. Verificar se porta 8000 está em uso
+netstat -ano | findstr :8000
+
+# 2. Matar processo
+taskkill /PID <PID> /F
+
+# 3. Usar porta diferente
+# Edite api_server.py: port=8001
+```
+
+**Linux:**
 ```bash
-# Temperatura
-vcgencmd measure_temp
-# Se > 80°C, adicione refrigeração!
+# Verificar porta
+sudo lsof -i :8000
 
-# Throttling
-vcgencmd get_throttled
-# Se != 0x0, há problemas de alimentação/temperatura
+# Matar processo
+kill -9 <PID>
 ```
 
-## 🔌 Problemas com Serial (Arduino)
-
-### ❌ Porta serial não encontrada
+### ❌ Cliente não conecta no servidor
 
 **Sintomas:**
 ```
-FileNotFoundError: [Errno 2] No such file or directory: '/dev/ttyUSB0'
+Connection refused
+WebSocket connection failed
 ```
 
 **Soluções:**
 
-1. **Identificar porta correta:**
-   ```bash
-   # Desconecte Arduino
-   ls /dev/tty*
-   
-   # Conecte Arduino
-   ls /dev/tty*
-   
-   # A nova porta é o Arduino (geralmente ttyUSB0 ou ttyACM0)
-   ```
+```bash
+# 1. Verificar se servidor está rodando
+cd api
+python api_server.py
+# Deve mostrar: Server running on http://0.0.0.0:8000
 
-2. **Ajustar config.yaml:**
-   ```yaml
-   serial:
-     port: "/dev/ttyACM0"  # ou ttyUSB0
-   ```
+# 2. Verificar firewall (Windows)
+# Windows Defender Firewall -> Allow an app
+# Adicione Python
 
-3. **Permissões:**
-   ```bash
-   sudo usermod -aG dialout $USER
-   sudo chmod 666 /dev/ttyUSB0
-   # Logout/login necessário
-   ```
+# 3. Verificar IP correto
+ipconfig  # Windows
+ifconfig  # Linux/Mac
 
-### ❌ Sem comunicação com Arduino
+# 4. Testar conexão local primeiro
+# config.py: API_URL = "ws://localhost:8000/ws/controller"
+
+# 5. Verificar antivírus (pode bloquear WebSocket)
+```
+
+### ❌ ESP32 não recebe comandos
 
 **Sintomas:**
-- Comandos enviados mas Arduino não responde
-- Serial timeout
+- Detection envia comandos
+- ESP32 não responde
 
 **Soluções:**
 
-1. **Verificar baudrate:**
-   ```yaml
-   # config.yaml
-   serial:
-     baudrate: 9600  # DEVE SER IGUAL ao Arduino
-   ```
-   
-   ```cpp
-   // Arduino
-   Serial.begin(9600);  // MESMO valor
-   ```
+```cpp
+// 1. Verificar Serial Monitor ESP32 (115200 baud)
+// Deve mostrar: WebSocket connected!
 
-2. **Testar comunicação:**
-   ```bash
-   python3 test_serial.py /dev/ttyUSB0 9600
-   ```
+// 2. Verificar configuração em APIreceiver.h
+const char* SERVER_HOST = "192.168.1.100";  // IP DO SEU PC
+const int SERVER_PORT = 8000;
+const char* SERVER_PATH = "/ws/robot";
 
-3. **Monitor Serial Arduino:**
-   ```bash
-   sudo apt install screen
-   screen /dev/ttyUSB0 9600
-   # Ctrl+A, K para sair
-   ```
+// 3. Testar conectividade
+// No Serial Monitor ESP32: deve mostrar mensagens quando conecta
 
-4. **Verificar cabo USB:**
-   - Use cabo USB com dados (não só alimentação)
-   - Teste outro cabo
+// 4. Verificar se está na mesma rede WiFi
+```
 
-5. **Reset Arduino:**
-   ```bash
-   # Desconectar e reconectar
-   # Ou via software:
-   python3 -c "import serial; s=serial.Serial('/dev/ttyUSB0',9600); s.setDTR(False); s.setDTR(True); s.close()"
-   ```
+## 🤖 Problemas com ESP32
 
-## 🐳 Problemas com Docker
-
-### ❌ Build falha
+### ❌ ESP32 não conecta no WiFi
 
 **Sintomas:**
 ```
-ERROR: failed to solve: ...
+WiFi connection failed
+Connecting to WiFi...
 ```
 
 **Soluções:**
 
-1. **Limpar cache:**
-   ```bash
-   docker system prune -a
-   docker-compose build --no-cache
-   ```
+```cpp
+// 1. Verificar SSID e senha em Config.h
+#define WIFI_SSID "SUA_REDE"
+#define WIFI_PASSWORD "SUA_SENHA"
 
-2. **Verificar espaço em disco:**
-   ```bash
-   df -h
-   # Precisa de pelo menos 5GB livres
-   ```
+// 2. Verificar se WiFi é 2.4GHz
+// ESP32 NÃO suporta 5GHz!
 
-3. **Aumentar swap temporariamente:**
-   ```bash
-   sudo dphys-swapfile swapoff
-   sudo nano /etc/dphys-swapfile
-   # CONF_SWAPSIZE=2048
-   sudo dphys-swapfile setup
-   sudo dphys-swapfile swapon
-   ```
+// 3. Aproximar ESP32 do roteador
 
-4. **Build em etapas:**
-   ```bash
-   docker build --target base -t lixeira:base .
-   docker build -t lixeira:latest .
-   ```
+// 4. Adicionar delay em main.cpp
+WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+delay(5000);  // Aguarda 5 segundos
 
-### ❌ Container não inicia
+// 5. Resetar ESP32
+// Botão RESET ou desconectar/reconectar USB
+```
+
+### ❌ Upload ESP32 falha
 
 **Sintomas:**
 ```
-Error response from daemon: ...
+Failed to connect to ESP32
+Timed out waiting for packet header
 ```
 
 **Soluções:**
 
-1. **Ver logs completos:**
-   ```bash
-   docker-compose logs
-   docker logs lixeira-inteligente
-   ```
+```bash
+# 1. Segurar botão BOOT durante upload
+# Segurar BOOT, clicar Upload, soltar quando começar
 
-2. **Verificar dispositivos:**
-   ```bash
-   # Câmera
-   ls -l /dev/video0
-   
-   # Serial
-   ls -l /dev/ttyUSB0
-   ```
+# 2. Verificar porta COM correta
+# PlatformIO: Ajuste em platformio.ini
+upload_port = COM3  # Windows
+upload_port = /dev/ttyUSB0  # Linux
 
-3. **Ajustar docker-compose.yml:**
-   ```yaml
-   devices:
-     - /dev/video0:/dev/video0
-     # Comente se não tiver Arduino conectado:
-     # - /dev/ttyUSB0:/dev/ttyUSB0
-   ```
+# 3. Instalar drivers CH340/CP2102
+# Windows: Baixe drivers USB-Serial
 
-4. **Modo interativo para debug:**
-   ```bash
-   docker run -it --rm \
-     --device=/dev/video0 \
-     --privileged \
-     lixeira-inteligente /bin/bash
-   ```
+# 4. Verificar cabo USB
+# Use cabo com DADOS (não só alimentação)
 
-### ❌ Erro de permissão
+# 5. Reduzir upload_speed
+upload_speed = 115200  # Ao invés de 921600
+```
+
+### ❌ ESP32 reinicia constantemente
 
 **Sintomas:**
 ```
-Permission denied: '/dev/video0'
+Brownout detector was triggered
+Guru Meditation Error
 ```
 
 **Soluções:**
 
-1. **Usar modo privileged:**
-   ```yaml
-   # docker-compose.yml
-   privileged: true
-   ```
+```cpp
+// 1. Alimentação insuficiente
+// Use fonte 5V 2A+ (não USB do PC)
 
-2. **Ajustar permissões:**
-   ```bash
-   sudo chmod 666 /dev/video0
-   sudo chmod 666 /dev/ttyUSB0
-   ```
+// 2. Adicionar capacitor 100µF entre VIN e GND
 
-## 🧠 Problemas com YOLO
+// 3. Verificar consumo dos motores
+// Motores devem ter alimentação separada (7.7V)
+
+// 4. Desabilitar brownout detector (último recurso)
+// platformio.ini:
+board_build.f_flash = 40000000L
+board_build.flash_mode = dio
+```
+
+## 🧠 Problemas com YOLO / Detecção
 
 ### ❌ Modelo não baixa
 
 **Sintomas:**
 ```
-Error downloading model...
+Error downloading model
+URLError: <urlopen error [Errno 11001] getaddrinfo failed>
 ```
 
 **Soluções:**
 
-1. **Baixar manualmente:**
-   ```bash
-   cd models
-   wget https://github.com/ultralytics/assets/releases/download/v0.0.0/yolov8n.pt
-   ```
+```bash
+# 1. Verificar conexão internet
+ping google.com
 
-2. **Verificar conexão internet:**
-   ```bash
-   ping google.com
-   ```
+# 2. Baixar modelo manualmente
+cd detection/models
+# Download: https://github.com/ultralytics/assets/releases
 
-3. **Usar modelo local:**
-   ```python
-   # Se já tiver o modelo
-   model = YOLO('models/yolov8n.pt')
-   ```
+# 3. Usar modelo local (se já tiver)
+# config.py:
+MODEL_PATH = "detection/models/below-trash-v2.pt"
+```
 
-### ❌ Detecções ruins
+### ❌ Não detecta objetos
+
+**Sintomas:**
+- Câmera funciona
+- Nenhuma detecção aparece
 
 **Soluções:**
 
-1. **Ajustar confiança:**
-   ```yaml
-   yolo:
-     confidence: 0.3  # Diminua para mais detecções
-     # confidence: 0.7  # Aumente para menos falsos positivos
-   ```
+```python
+# 1. Reduzir confidence threshold
+CONFIDENCE_THRESHOLD = 0.05  # Muito baixo para debug
 
-2. **Melhorar iluminação:**
-   - Adicione luz ambiente
-   - Evite contra-luz
-   - Use iluminação uniforme
+# 2. Verificar se objeto está nas classes
+TARGET_CLASSES = ['can', 'paper']  # Modelo customizado
 
-3. **Aumentar resolução:**
-   ```yaml
-   camera:
-     resolution: [640, 480]  # ou maior
-   ```
+# 3. Melhorar iluminação
+# Ambiente BEM iluminado é essencial
 
-4. **Testar com imagens:**
-   ```python
-   from ultralytics import YOLO
-   model = YOLO('yolov8n.pt')
-   results = model('test.jpg')
-   results[0].show()
-   ```
+# 4. Verificar se modelo está carregado
+# Terminal deve mostrar: Modelo carregado: below-trash-v2.pt
+
+# 5. Testar com imagem estática
+python -c "from ultralytics import YOLO; m = YOLO('detection/models/below-trash-v2.pt'); m('test.jpg').show()"
+
+# 6. Usar modelo v1 se v2 falhar
+MODEL_PATH = "detection/models/below-trash-v1.pt"
+```
+
+### ❌ Detecções ruins/inconsistentes
+
+**Soluções:**
+
+```python
+# 1. Ajustar confidence
+CONFIDENCE_THRESHOLD = 0.15  # Balanceado
+CONFIDENCE_THRESHOLD = 0.10  # Mais sensível
+CONFIDENCE_THRESHOLD = 0.25  # Mais conservador
+
+# 2. Aumentar resolução
+CAMERA_WIDTH = 640
+CAMERA_HEIGHT = 640
+
+# 3. Verificar iluminação
+# - Evite contra-luz
+# - Use luz uniforme
+# - Não aponte para janelas
+
+# 4. Calibrar dimensões dos objetos
+OBJECT_DIMENSIONS = {
+    0: 0.17,  # can - Medir objeto real!
+    1: 0.10   # paper - Ajustar conforme seu papel
+}
+```
 
 ### ❌ Memória insuficiente
 
 **Sintomas:**
 ```
-RuntimeError: out of memory
+RuntimeError: CUDA out of memory
+MemoryError
 ```
 
 **Soluções:**
 
-1. **Reduzir resolução:**
-   ```yaml
-   camera:
-     resolution: [320, 240]
-   ```
+```python
+# 1. Reduzir resolução
+CAMERA_WIDTH = 416
+CAMERA_HEIGHT = 416
 
-2. **Limitar recursos Docker:**
-   ```yaml
-   deploy:
-     resources:
-       limits:
-         memory: 512M
-   ```
+# 2. Usar CPU ao invés de GPU
+# config.py ou main.py:
+device = 'cpu'
 
-3. **Usar modelo menor:**
-   ```yaml
-   yolo:
-     model: "yolov8n.pt"  # O MENOR disponível
-   ```
+# 3. Reduzir histórico de tracking
+MAX_HISTORY = 10
 
-4. **Fechar outros programas:**
-   ```bash
-   sudo systemctl stop bluetooth
-   sudo systemctl stop cups
-   ```
+# 4. Fechar programas
+# Chrome, Discord, etc
 
-## 🔥 Problemas de Performance
+# 5. Reiniciar Python
+```
 
-### ❌ Sistema lento / lag
+## 🎨 Problemas com Visualização 3D
 
-**Verificações:**
+### ❌ Janela 3D não abre
 
-1. **Temperatura:**
-   ```bash
-   vcgencmd measure_temp
-   # Se > 80°C, ADICIONE REFRIGERAÇÃO!
-   ```
+**Sintomas:**
+- Pressiona D
+- Nada acontece
 
-2. **Throttling:**
-   ```bash
-   vcgencmd get_throttled
-   
-   # 0x0 = OK
-   # 0x50000 = Throttling passado
-   # 0x50005 = Throttling ativo + passado
-   ```
+**Soluções:**
 
-3. **Alimentação:**
-   ```bash
-   vcgencmd get_throttled
-   # Problemas = alimentação fraca
-   # Use fonte oficial 5V 3A
-   ```
+```python
+# 1. Verificar se matplotlib está instalado
+pip install matplotlib
 
-4. **Memória:**
-   ```bash
-   free -h
-   # Se swap está sendo usado, problema de memória
-   ```
+# 2. Verificar backend
+import matplotlib
+print(matplotlib.get_backend())
+# Deve ser: TkAgg, Qt5Agg, ou WXAgg
+
+# 3. Instalar backend (se necessário)
+pip install PyQt5
+# Ou
+pip install tk
+
+# 4. Testar matplotlib
+python -c "import matplotlib.pyplot as plt; plt.plot([1,2]); plt.show()"
+```
+
+### ❌ Visualização 3D muito lenta
+
+**Soluções:**
+
+```python
+# 1. Desativar por padrão
+DEFAULT_DEV_MODE = False
+
+# 2. Reduzir pontos da trajetória
+TRAJECTORY_POINTS = 10  # Ao invés de 20
+
+# 3. Aumentar intervalo de atualização
+# Edite vision.py: blit=True para animação mais rápida
+
+# 4. Usar janela menor
+```
+
+## 📊 Problemas de Performance
+
+### ❌ Sistema lento/lag
+
+**Diagnóstico:**
+
+```python
+# 1. Monitorar FPS
+# Terminal mostra: [FPS: XX.X]
+
+# 2. Verificar uso de GPU
+# Windows: Task Manager -> Performance -> GPU
+# Linux: nvidia-smi
+
+# 3. Verificar uso de CPU
+# Windows: Task Manager
+# Linux: htop
+
+# 4. Verificar temperatura
+# GPU >85°C = throttling
+```
 
 **Soluções:** Ver [OPTIMIZATION.md](OPTIMIZATION.md)
 
-### ❌ Alta latência nas decisões
+### ❌ Alta latência de resposta
+
+**Sintomas:**
+- Detecção funciona
+- Robô responde com delay
 
 **Soluções:**
 
-1. **Frame skip agressivo:**
-   ```yaml
-   performance:
-     frame_skip: 3
-   ```
+```python
+# 1. Reduzir MIN_TRACKING_FRAMES
+MIN_TRACKING_FRAMES = 3  # Mais rápido, menos preciso
 
-2. **Resolução mínima:**
-   ```yaml
-   camera:
-     resolution: [320, 240]
-   ```
+# 2. Usar rede mais rápida (WiFi 5GHz ou Ethernet)
 
-3. **Baudrate maior:**
-   ```yaml
-   serial:
-     baudrate: 115200
-   ```
+# 3. Otimizar código ESP32
+// Evite delays desnecessários
+// Use processamento não-bloqueante
 
-4. **Otimizar código Arduino:**
-   - Evite delays
-   - Parse rápido de comandos
-   - Use interrupções
+# 4. Reduzir FPS da câmera se necessário
+CAMERA_FPS = 30
 
-## 💾 Problemas de Sistema
-
-### ❌ SD Card cheio
-
-```bash
-# Verificar espaço
-df -h
-
-# Limpar Docker
-docker system prune -a
-
-# Limpar logs
-sudo journalctl --vacuum-size=100M
-rm -rf logs/*
-
-# Limpar APT cache
-sudo apt clean
+# 5. Verificar latência de rede
+ping 192.168.1.100  # IP do ESP32
 ```
 
-### ❌ Sistema instável / crashes
+## 💻 Problemas de Sistema
+
+### ❌ Import errors (Python)
+
+**Sintomas:**
+```
+ModuleNotFoundError: No module named 'ultralytics'
+```
 
 **Soluções:**
 
-1. **Verificar logs do sistema:**
-   ```bash
-   dmesg | tail -50
-   sudo journalctl -xe
-   ```
+```bash
+# 1. Ativar ambiente virtual
+# Windows:
+venv\Scripts\activate
 
-2. **Verificar memória:**
-   ```bash
-   vcgencmd get_mem arm && vcgencmd get_mem gpu
-   ```
+# Linux/Mac:
+source venv/bin/activate
 
-3. **Verificar alimentação:**
-   - Use fonte oficial 5V 3A
-   - Evite hubs USB sem alimentação
-   - Verifique cabo de alimentação
+# 2. Reinstalar dependências
+pip install -r requirements.txt
 
-4. **Watchdog automático:**
-   ```bash
-   sudo apt install watchdog
-   sudo systemctl enable watchdog
-   ```
+# 3. Verificar versão Python
+python --version
+# Deve ser 3.8+, recomendado 3.11
+
+# 4. Criar novo ambiente virtual
+python -m venv venv_novo
+venv_novo\Scripts\activate
+pip install -r requirements.txt
+```
+
+### ❌ Python não encontrado (Windows)
+
+**Soluções:**
+
+```powershell
+# 1. Adicionar Python ao PATH
+# Windows: Configurações -> Sistema -> Variáveis de Ambiente
+
+# 2. Reinstalar Python
+# Download: https://www.python.org/downloads/
+# ✅ Marcar "Add Python to PATH" durante instalação
+
+# 3. Usar py ao invés de python
+py -m pip install -r requirements.txt
+py detection/main.py
+```
+
+### ❌ Permissões negadas (Linux)
+
+```bash
+# Câmera
+sudo usermod -aG video $USER
+
+# Serial
+sudo usermod -aG dialout $USER
+
+# Aplicar (precisa logout/login)
+newgrp video
+newgrp dialout
+```
 
 ## 🔍 Debug Avançado
 
-### Modo verbose
+### Modo Verbose
 
-```yaml
-# config.yaml
-logging:
-  level: "DEBUG"
+```python
+# config.py
+import logging
+logging.basicConfig(level=logging.DEBUG)
 ```
 
-### Executar sem Docker
+### Logs Detalhados
 
 ```bash
-python3 detect.py
-# Vê erros diretamente
+# Redirecionar para arquivo
+python detection/main.py > log.txt 2>&1
+
+# Ver logs em tempo real
+tail -f log.txt  # Linux/Mac
+Get-Content log.txt -Wait  # Windows PowerShell
 ```
 
-### Logs detalhados Docker
-
-```bash
-docker-compose logs -f --tail=100
-```
-
-### Testar componentes isoladamente
+### Testar Componentes Isoladamente
 
 ```bash
 # Apenas câmera
-python3 test_camera.py
+python tests/test_camera.py
 
-# Apenas serial
-python3 test_serial.py
+# Apenas modelo YOLO
+python tests/test_yolo_classes.py
 
-# Apenas YOLO
-python3 -c "from ultralytics import YOLO; model = YOLO('yolov8n.pt'); print('OK')"
+# Apenas WebSocket
+cd api
+python api_server.py
+# Outro terminal:
+python -c "import websocket; ws=websocket.create_connection('ws://localhost:8000/ws/controller'); ws.send('test'); ws.close()"
 ```
 
 ## 📞 Checklist de Verificação
 
 Antes de pedir ajuda, verifique:
 
-- [ ] Raspberry Pi alimentado corretamente (5V 3A)
-- [ ] Temperatura < 80°C
-- [ ] Câmera conectada e reconhecida
-- [ ] Arduino conectado e respondendo
-- [ ] Docker instalado e funcionando
-- [ ] Espaço suficiente em disco (>2GB)
-- [ ] Permissões corretas (dialout, video)
-- [ ] Logs verificados
-- [ ] Configurações corretas em config.yaml
+- [ ] Python 3.8+ instalado
+- [ ] Ambiente virtual ativado
+- [ ] Dependências instaladas (`pip install -r requirements.txt`)
+- [ ] Câmera conectada e funcionando
+- [ ] Modelo `below-trash-v2.pt` existe em `detection/models/`
+- [ ] Config.py configurado (CAMERA_ID, API_URL)
+- [ ] Firewall permite Python
+- [ ] ESP32 conectado no WiFi (verificar Serial Monitor)
+- [ ] API Server rodando (`python api/api_server.py`)
+- [ ] Iluminação adequada no ambiente
 
 ## 🆘 Ainda com problemas?
 
-1. **Veja os logs:**
-   ```bash
-   docker-compose logs > debug.log
-   cat debug.log
-   ```
+### 1. Coletar informações
 
-2. **Informações do sistema:**
-   ```bash
-   cat /proc/cpuinfo | grep Model
-   free -h
-   df -h
-   vcgencmd measure_temp
-   vcgencmd get_throttled
-   ```
+```bash
+# Sistema
+python --version
+pip list
 
-3. **Abra uma issue no GitHub:**
-   - Inclua logs completos
-   - Informações do sistema
-   - Configurações usadas
-   - Passos para reproduzir
+# GPU (se tiver)
+python -c "import torch; print(f'CUDA: {torch.cuda.is_available()}')"
+
+# Logs
+python detection/main.py > debug.log 2>&1
+```
+
+### 2. Abrir Issue no GitHub
+
+Inclua:
+- Sistema operacional (Windows 10/11, Ubuntu 22.04, etc)
+- Versão Python
+- Hardware (CPU/GPU)
+- Logs completos
+- Passos para reproduzir
+- Configurações usadas
+
+### 3. Documentação
+
+- [README.md](../README.md) - Documentação completa
+- [QUICKSTART.md](QUICKSTART.md) - Guia rápido
+- [OPTIMIZATION.md](OPTIMIZATION.md) - Otimizações
+- [PHYSICS.md](PHYSICS.md) - Física do sistema
 
 ---
 
 **Dica:** A maioria dos problemas é causada por:
-1. 🔥 Temperatura alta (80%+)
-2. 🔌 Alimentação fraca (15%)
-3. ⚙️ Configuração incorreta (5%)
+1. 📹 **Câmera** não configurada/permissões (40%)
+2. 🌐 **WebSocket** firewall/IP errado (30%)
+3. 🐍 **Python** ambiente virtual não ativado (20%)
+4. 💡 **Iluminação** ruim no ambiente (10%)
 
-Sempre comece verificando temperatura e alimentação!
+Sempre comece verificando estes 4 pontos! ✅
