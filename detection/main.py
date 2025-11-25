@@ -102,8 +102,13 @@ class DetectionApp:
             return None
         
         # Detectar objetos usando YOLO
-        results = self.detector.track(frame, persist=True, tracker="bytetrack.yaml", verbose=False)
-        
+        results = self.detector.track(
+            frame, 
+            persist=True, 
+            tracker="bytetrack.yaml", 
+            verbose=False, 
+            device=config.DEVICE
+        )        
         # Processar cada detecção
         for result in results:
             boxes = result.boxes

@@ -1,7 +1,15 @@
 """
 Configurações centralizadas do sistema - Clean Code
 """
-
+import torch
+try:
+    import torch_directml
+    DEVICE = torch_directml.device()
+    print(f"Configuração: Usando GPU AMD via DirectML ({DEVICE})")
+except ImportError:
+    DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
+    print(f"DirectML não encontrado. Usando: {DEVICE}")
+    
 # ===== CÂMERA =====
 CAMERA_ID = 0
 CAMERA_WIDTH = 640
