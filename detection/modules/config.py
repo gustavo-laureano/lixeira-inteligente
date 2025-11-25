@@ -57,6 +57,7 @@ DEFAULT_DEV_MODE = True  # Inicia com visualização 3D
 SHOW_FPS = True
 SHOW_BOXES = True
 SHOW_TRAJECTORY = True
+VERBOSE_LOGGING = False  # Debug detalhado dos comandos
 
 # ===== API/WEBSOCKET =====
 API_URL = "ws://localhost:8000/ws/controller"

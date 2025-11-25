@@ -38,8 +38,8 @@ class RobotWebSocket:
         
         try:
             print(f"🔌 Conectando ao robô em {self.url}...")
-            self.ws = websocket.WebSocket()
-            self.ws.connect(self.url, timeout=5)
+            # Usar create_connection para conexão síncrona
+            self.ws = websocket.create_connection(self.url, timeout=5)
             self.connected = True
             print("✅ Conectado ao robô!")
             return True
@@ -64,7 +64,8 @@ class RobotWebSocket:
         while self.running and not self.connected:
             print("🔄 Tentando reconectar...")
             sleep(5)
-            self.connect()
+            if self.running:  # Verifica novamente antes de tentar conectar
+                self.connect()
     
     def send_raw(self, text: str):
         """
@@ -74,6 +75,7 @@ class RobotWebSocket:
             text: String no formato "V:vy,vx"
         """
         if not self.connected or self.ws is None:
+            print("⚠️  WebSocket não conectado. Ignorando comando.")
             return False
         
         try:
@@ -84,6 +86,13 @@ class RobotWebSocket:
             print(f"⚠️  Erro ao enviar comando: {e}")
             self.connected = False
             
+            # Fecha a conexão corrompida
+            try:
+                self.ws.close()
+            except:
+                pass
+            self.ws = None
+            
             if self.auto_reconnect:
                 self._start_reconnect_thread()
             
@@ -91,17 +100,17 @@ class RobotWebSocket:
     
     def send_motor_speeds(self, left_speed, right_speed):
         """
-        Envia velocidades diretas aos motores
+        Envia velocidades diretas aos motores no formato V:vy,vx
         
         Args:
             left_speed: Velocidade motor esquerdo (-255 a 255)
             right_speed: Velocidade motor direito (-255 a 255)
         """
-        command = {
-            'left': int(left_speed),
-            'right': int(right_speed)
-        }
-        return self.send_command(command)
+        # Converte para formato V:vy,vx (normalizado entre -1 e 1)
+        vy = left_speed / 255.0
+        vx = right_speed / 255.0
+        command = f"V:{vy:.3f},{vx:.3f}"
+        return self.send_raw(command)
     
     def stop(self):
         """Para o robô"""
