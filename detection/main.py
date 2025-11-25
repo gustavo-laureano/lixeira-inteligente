@@ -307,8 +307,6 @@ class DetectionApp:
                 
                 # Processar apenas teclas válidas (ignorar 255 que é "nenhuma tecla")
                 if key < 255:
-                    # Debug: descomentar para ver teclas pressionadas
-                    print(f"[DEBUG] Tecla: {key}")
                     self.handle_keyboard(key)
         
         except KeyboardInterrupt:
@@ -321,16 +319,32 @@ class DetectionApp:
         """Limpa recursos"""
         print("\n🧹 Limpando recursos...")
         
-        if self.camera:
-            self.camera.stop()
+        # CRÍTICO: Fechar janelas OpenCV PRIMEIRO (antes de parar threads)
+        try:
+            cv2.destroyAllWindows()
+            cv2.waitKey(1)  # Processa eventos pendentes
+        except Exception as e:
+            print(f"⚠️  Erro ao fechar janelas OpenCV: {e}")
         
-        if self.robot:
-            self.robot.disconnect()
+        # Depois parar câmera (thread-safe agora)
+        try:
+            if self.camera:
+                self.camera.stop()
+        except Exception as e:
+            print(f"⚠️  Erro ao parar câmera: {e}")
         
-        # Fechar visualização 3D (usando classe reutilizável)
-        self.visualizer.close()
+        try:
+            if self.robot:
+                self.robot.disconnect()
+        except Exception as e:
+            print(f"⚠️  Erro ao desconectar robô: {e}")
         
-        cv2.destroyAllWindows()
+        try:
+            # Fechar visualização 3D (usando classe reutilizável)
+            self.visualizer.close()
+        except Exception as e:
+            print(f"⚠️  Erro ao fechar visualização: {e}")
+        
         print("✅ Encerrado com sucesso!")
 
 

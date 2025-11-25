@@ -150,35 +150,39 @@ class CameraManager:
         consecutive_failures = 0
         max_failures = 30  # 30 falhas consecutivas = ~1 segundo
         
-        while self.is_running:
-            ret, frame = self.cap.read()
-            
-            if ret and frame is not None:
-                consecutive_failures = 0  # Reset contador
+        try:
+            while self.is_running:
+                ret, frame = self.cap.read()
                 
-                # Crop para quadrado (pega o centro da imagem)
-                h, w = frame.shape[:2]
-                size = min(h, w)
-                start_x = (w - size) // 2
-                start_y = (h - size) // 2
-                frame = frame[start_y:start_y + size, start_x:start_x + size]
+                if ret and frame is not None:
+                    consecutive_failures = 0  # Reset contador
+                    
+                    # Crop para quadrado (pega o centro da imagem)
+                    h, w = frame.shape[:2]
+                    size = min(h, w)
+                    start_x = (w - size) // 2
+                    start_y = (h - size) // 2
+                    frame = frame[start_y:start_y + size, start_x:start_x + size]
+                    
+                    # Redimensiona para o tamanho desejado
+                    frame = cv2.resize(frame, (self.size, self.size))
+                    
+                    # Atualiza frame com thread-safe
+                    with self.lock:
+                        self.frame = frame
+                        self.ret = ret
+                else:
+                    consecutive_failures += 1
+                    if consecutive_failures >= max_failures:
+                        print(f"❌ Erro: Muitas falhas consecutivas na leitura da câmera")
+                        self.is_running = False
+                        break
                 
-                # Redimensiona para o tamanho desejado
-                frame = cv2.resize(frame, (self.size, self.size))
-                
-                # Atualiza frame com thread-safe
-                with self.lock:
-                    self.frame = frame
-                    self.ret = ret
-            else:
-                consecutive_failures += 1
-                if consecutive_failures >= max_failures:
-                    print(f"❌ Erro: Muitas falhas consecutivas na leitura da câmera")
-                    self.is_running = False
-                    break
-            
-            # Controla FPS
-            time.sleep(1 / self.fps)
+                # Controla FPS
+                time.sleep(1 / self.fps)
+        except Exception as e:
+            print(f"❌ Erro no loop de captura: {e}")
+            self.is_running = False
     
     def read(self):
         """Retorna (ret, frame) - similar ao cv2.VideoCapture.read()"""
@@ -197,11 +201,19 @@ class CameraManager:
         print("⏹️  Parando câmera...")
         self.is_running = False
         
-        if hasattr(self, 'thread'):
-            self.thread.join(timeout=2.0)
+        # CRÍTICO: Aguardar thread terminar ANTES de liberar recursos
+        if hasattr(self, 'thread') and self.thread and self.thread.is_alive():
+            self.thread.join(timeout=3.0)
+            if self.thread.is_alive():
+                print("⚠️  Thread de captura não parou a tempo")
         
-        if self.cap:
-            self.cap.release()
+        # Liberar recursos OpenCV apenas DEPOIS que thread parou
+        if hasattr(self, 'cap') and self.cap:
+            try:
+                self.cap.release()
+            except Exception as e:
+                print(f"⚠️  Erro ao liberar câmera: {e}")
+        
         print("✅ Câmera liberada")
     
     def __enter__(self):
@@ -211,8 +223,13 @@ class CameraManager:
         self.stop()
     
     def __del__(self):
-        if hasattr(self, 'cap') and self.cap:
-            self.stop()
+        """Destrutor - garante que recursos sejam liberados"""
+        try:
+            if hasattr(self, 'is_running') and self.is_running:
+                self.stop()
+        except Exception:
+            # Ignora erros durante destruição (comum quando Python está finalizando)
+            pass
 
 
 if __name__ == "__main__":
