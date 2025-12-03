@@ -8,6 +8,7 @@ DEFAULT_FPS = 60
 DEFAULT_SIZE = 416
 
 class CameraManager:
+
     
     def __init__(self, src=0, size=DEFAULT_SIZE, fps=DEFAULT_FPS):
         self.src = src
@@ -22,7 +23,7 @@ class CameraManager:
         
         self._open_camera()
     
-    def _open_camera(self):"
+    def _open_camera(self):
         print(f"⚡ OTIMIZAÇÃO: Iniciando câmera {self.src}...")
         
         self.cap = cv2.VideoCapture(self.src)

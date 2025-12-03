@@ -102,7 +102,8 @@ class DetectionApp:
             device=config.DEVICE,
             imgsz=320,     
             conf=0.25,      
-            iou=0.5
+            iou=0.5,
+            classes=[0, 1]
         )
         
         self.viz_counter += 1

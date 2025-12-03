@@ -17,7 +17,7 @@ CAMERA_HEIGHT = 640
 CAMERA_FPS = 60
 
 # ===== YOLO =====
-MODEL_PATH = "./detection/models/below-trash-v2.pt"
+MODEL_PATH = "./detection/models/below-trash-v2.onnx"
 CONFIDENCE_THRESHOLD = 0.30
 TARGET_CLASSES = ['can', 'paper']
 
